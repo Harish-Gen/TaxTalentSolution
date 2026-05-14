@@ -1,0 +1,28 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from controllers.candidate_controller import router as candidate_router
+from controllers.assessment_controller import router as assessment_router
+
+app = FastAPI(title="TTS API Endpoints", description="A structured FastAPI application with Repository Pattern")
+
+# Enable CORS if necessary
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(candidate_router)
+app.include_router(assessment_router)
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the TTS API"}
+
+if __name__ == "__main__":
+    # Run the application
+    uvicorn.run("TTS:app", host="127.0.0.1", port=8000, reload=True)

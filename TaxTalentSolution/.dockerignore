@@ -1,0 +1,13 @@
+node_modules
+build
+android
+.git
+.gitignore
+*.md
+*.log
+.env*
+.vscode
+.idea
+dist
+coverage
+Resumes Upload
