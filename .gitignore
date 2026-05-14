@@ -1,11 +1,22 @@
-################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
-
-.vs/
+# Build outputs
+node_modules/
+dist/
+build/
 [Bb]in/
 [Oo]bj/
-node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+
+# IDEs
+.vs/
+.vscode/
 *.user
 *.suo
 *.userosscache
