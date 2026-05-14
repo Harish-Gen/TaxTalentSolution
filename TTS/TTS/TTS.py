@@ -6,6 +6,7 @@ from controllers.assessment_controller import router as assessment_router
 from controllers.employer_controller import router as employer_router
 from controllers.jobposting_controller import router as jobposting_router
 from controllers.user_controller import router as user_router
+from controllers.question_controller import router as question_router
 
 app = FastAPI(title="TTS API Endpoints", description="A structured FastAPI application with Repository Pattern")
 
@@ -24,6 +25,7 @@ app.include_router(assessment_router)
 app.include_router(employer_router)
 app.include_router(jobposting_router)
 app.include_router(user_router)
+app.include_router(question_router)
 
 @app.get("/")
 def read_root():
