@@ -13,5 +13,9 @@ class IQuestionRepository(ABC):
         pass
 
     @abstractmethod
+    def get_questions_by_assessment_id(self, assessment_id: UUID) -> List[QuestionResponse]:
+        pass
+
+    @abstractmethod
     def upsert_question(self, question: QuestionCreateUpdate) -> QuestionResponse:
         pass

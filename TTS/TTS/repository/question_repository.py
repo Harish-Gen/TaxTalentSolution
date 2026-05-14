@@ -77,6 +77,31 @@ class QuestionRepository(IQuestionRepository):
                 results.append(QuestionResponse(**data))
             return results
 
+    def get_questions_by_assessment_id(self, assessment_id: UUID) -> List[QuestionResponse]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT q.* 
+                FROM questions q
+                JOIN assessment_questions aq ON q.id = aq.questionid
+                WHERE aq.assessmentid = ? AND aq.isactive = 1 AND q.isactive = 1
+            """, str(assessment_id))
+            rows = cursor.fetchall()
+            columns = [column[0] for column in cursor.description] if cursor.description else []
+            
+            results = []
+            for row in rows:
+                data = dict(zip(columns, row))
+                if data.get('qajson'):
+                    try:
+                        data['qajson'] = json.loads(data['qajson'])
+                    except Exception:
+                        pass
+                data['assessment_ids'] = self._get_assessment_ids_for_question(cursor, str(data['id']))
+                data['assessments'] = self._get_assessments_for_question(cursor, str(data['id']))
+                results.append(QuestionResponse(**data))
+            return results
+
     def upsert_question(self, question: QuestionCreateUpdate) -> QuestionResponse:
         data = question.dict(exclude_unset=True)
         

@@ -23,6 +23,16 @@ def get_all_questions(repo: IQuestionRepository = Depends(get_question_repositor
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/assessment/{assessment_id}", response_model=List[QuestionResponse])
+def get_questions_by_assessment(assessment_id: UUID, repo: IQuestionRepository = Depends(get_question_repository)):
+    """
+    Retrieve all questions mapped to a specific assessment ID.
+    """
+    try:
+        return repo.get_questions_by_assessment_id(assessment_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{question_id}", response_model=QuestionResponse)
 def get_question(question_id: UUID, repo: IQuestionRepository = Depends(get_question_repository)):
     """
