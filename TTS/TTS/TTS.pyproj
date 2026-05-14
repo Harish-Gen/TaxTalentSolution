@@ -27,15 +27,23 @@
     <Compile Include="controllers\__init__.py" />
     <Compile Include="controllers\candidate_controller.py" />
     <Compile Include="controllers\assessment_controller.py" />
+    <Compile Include="controllers\employer_controller.py" />
+    <Compile Include="controllers\jobposting_controller.py" />
     <Compile Include="interfaces\__init__.py" />
     <Compile Include="interfaces\icandidate_repository.py" />
     <Compile Include="interfaces\iassessment_repository.py" />
+    <Compile Include="interfaces\iemployer_repository.py" />
+    <Compile Include="interfaces\ijobposting_repository.py" />
     <Compile Include="models\__init__.py" />
     <Compile Include="models\candidate.py" />
     <Compile Include="models\assessment.py" />
+    <Compile Include="models\employer.py" />
+    <Compile Include="models\jobposting.py" />
     <Compile Include="repository\__init__.py" />
     <Compile Include="repository\candidate_repository.py" />
     <Compile Include="repository\assessment_repository.py" />
+    <Compile Include="repository\employer_repository.py" />
+    <Compile Include="repository\jobposting_repository.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="config\" />

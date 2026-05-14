@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from controllers.candidate_controller import router as candidate_router
 from controllers.assessment_controller import router as assessment_router
+from controllers.employer_controller import router as employer_router
+from controllers.jobposting_controller import router as jobposting_router
 
 app = FastAPI(title="TTS API Endpoints", description="A structured FastAPI application with Repository Pattern")
 
@@ -18,6 +20,8 @@ app.add_middleware(
 # Register routers
 app.include_router(candidate_router)
 app.include_router(assessment_router)
+app.include_router(employer_router)
+app.include_router(jobposting_router)
 
 @app.get("/")
 def read_root():

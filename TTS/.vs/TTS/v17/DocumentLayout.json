@@ -1,12 +1,7 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\Harishkumar P\\Downloads\\TaxTalentSolution\\TTS\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{93D050D9-1060-4ED1-B589-F049179AE068}|TTS\\TTS.pyproj|C:\\Users\\Harishkumar P\\Downloads\\TaxTalentSolution\\TTS\\TTS\\controllers\\candidate_controller.py||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{93D050D9-1060-4ED1-B589-F049179AE068}|TTS\\TTS.pyproj|solutionrelative:TTS\\controllers\\candidate_controller.py||{8B382828-6202-11D1-8870-0000F87579D2}"
-    }
-  ],
+  "WorkspaceRootPath": "C:\\Users\\Sradesh Babu\\source\\repos\\TTS\\",
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -14,28 +9,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": -1,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "candidate_controller.py",
-              "DocumentMoniker": "C:\\Users\\Harishkumar P\\Downloads\\TaxTalentSolution\\TTS\\TTS\\controllers\\candidate_controller.py",
-              "RelativeDocumentMoniker": "TTS\\controllers\\candidate_controller.py",
-              "ToolTip": "C:\\Users\\Harishkumar P\\Downloads\\TaxTalentSolution\\TTS\\TTS\\controllers\\candidate_controller.py",
-              "RelativeToolTip": "TTS\\controllers\\candidate_controller.py",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAAABIAAAAHAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
-              "WhenOpened": "2026-05-14T07:08:06.073Z",
-              "EditorCaption": ""
             }
           ]
         }
