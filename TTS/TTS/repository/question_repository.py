@@ -62,10 +62,16 @@ class QuestionRepository(IQuestionRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM questions WHERE isactive = 1")
             rows = cursor.fetchall()
+            columns = [column[0] for column in cursor.description] if cursor.description else []
             
             results = []
             for row in rows:
-                data = self._row_to_dict(cursor, row)
+                data = dict(zip(columns, row))
+                if data.get('qajson'):
+                    try:
+                        data['qajson'] = json.loads(data['qajson'])
+                    except Exception:
+                        pass
                 data['assessment_ids'] = self._get_assessment_ids_for_question(cursor, str(data['id']))
                 data['assessments'] = self._get_assessments_for_question(cursor, str(data['id']))
                 results.append(QuestionResponse(**data))

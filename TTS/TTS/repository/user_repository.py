@@ -58,10 +58,11 @@ class UserRepository(IUserRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM users WHERE isactive = 1")
             rows = cursor.fetchall()
+            columns = [column[0] for column in cursor.description] if cursor.description else []
             
             results = []
             for row in rows:
-                data = self._row_to_dict(cursor, row)
+                data = dict(zip(columns, row))
                 data['employer_ids'] = self._get_employer_ids_for_user(cursor, str(data['id']))
                 data['role'] = self._get_role_for_user(cursor, data.get('roleid'))
                 data['employers'] = self._get_employers_for_user(cursor, str(data['id']))
