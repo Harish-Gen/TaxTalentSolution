@@ -9,6 +9,10 @@ class IUserRepository(ABC):
         pass
 
     @abstractmethod
+    def get_user_by_email(self, email: str) -> Optional[UserResponse]:
+        pass
+
+    @abstractmethod
     def get_all_users(self) -> List[UserResponse]:
         pass
 

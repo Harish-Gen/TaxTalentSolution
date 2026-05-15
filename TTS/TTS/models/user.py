@@ -21,3 +21,10 @@ class UserResponse(UserCreateUpdate):
     employer_ids: List[UUID] = []
     role: Optional[dict] = None
     employers: Optional[List[dict]] = []
+
+class UserLogin(BaseModel):
+    email: EmailStr
+
+class UserLoginResponse(BaseModel):
+    message: str
+    user: UserResponse

@@ -3,7 +3,7 @@ from typing import List
 from uuid import UUID
 from interfaces.iuser_repository import IUserRepository
 from repository.user_repository import UserRepository
-from models.user import UserCreateUpdate, UserResponse
+from models.user import UserCreateUpdate, UserResponse, UserLogin, UserLoginResponse
 
 router = APIRouter(
     prefix="/api/users",
@@ -12,6 +12,25 @@ router = APIRouter(
 
 def get_user_repository() -> IUserRepository:
     return UserRepository()
+
+@router.post("/login", response_model=UserLoginResponse)
+def login_user(login_data: UserLogin, repo: IUserRepository = Depends(get_user_repository)):
+    """
+    Authenticate a user by email and return their full profile if found.
+    """
+    try:
+        user = repo.get_user_by_email(login_data.email)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or user not found")
+        
+        return UserLoginResponse(
+            message="Login successful",
+            user=user
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[UserResponse])
 def get_all_users(repo: IUserRepository = Depends(get_user_repository)):

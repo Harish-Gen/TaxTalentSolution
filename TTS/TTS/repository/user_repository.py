@@ -53,6 +53,20 @@ class UserRepository(IUserRepository):
                 return UserResponse(**data)
             return None
 
+    def get_user_by_email(self, email: str) -> Optional[UserResponse]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE email = ? AND isactive = 1", email)
+            row = cursor.fetchone()
+            data = self._row_to_dict(cursor, row)
+            if data:
+                user_id = str(data['id'])
+                data['employer_ids'] = self._get_employer_ids_for_user(cursor, user_id)
+                data['role'] = self._get_role_for_user(cursor, data.get('roleid'))
+                data['employers'] = self._get_employers_for_user(cursor, user_id)
+                return UserResponse(**data)
+            return None
+
     def get_all_users(self) -> List[UserResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
