@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -6,6 +6,12 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Slider } from "../ui/slider";
 import { Checkbox } from "../ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { 
   Search, 
   MapPin, 
@@ -18,9 +24,12 @@ import {
   UserPlus,
   DollarSign,
   Clock,
-  Loader2
+  Loader2,
+  Mail,
+  Phone
 } from "lucide-react";
-import { useCandidates, useUsers, useCandidateCertificates, candidateSkills } from "../../database";
+import { useCandidates, useCandidateCertificates, candidateSkills } from "../../database";
+import { candidateService } from "../../api/candidateService";
 
 interface Candidate {
   id: string;
@@ -49,29 +58,44 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(true);
   
+  // Profile Popup State
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  useEffect(() => {
+    if (selectedProfileId) {
+      setLoadingProfile(true);
+      candidateService.getCandidateById(selectedProfileId)
+        .then(data => setProfileData(data))
+        .catch(err => console.error(err))
+        .finally(() => setLoadingProfile(false));
+    } else {
+      setProfileData(null);
+    }
+  }, [selectedProfileId]);
+  
   // Fetch from local database
   const { candidates: dbCandidates, loading: candidatesLoading } = useCandidates();
-  const { users, loading: usersLoading } = useUsers();
   
-  const loading = candidatesLoading || usersLoading;
+  const loading = candidatesLoading;
   
   // Transform database candidates to component format
-  const mockCandidates: Candidate[] = useMemo(() => {
+  const mappedCandidates: Candidate[] = useMemo(() => {
     return dbCandidates
-      .filter(c => c.status === 'approved')
       .map(candidate => {
-        const user = users.find(u => u.id === candidate.user_id);
+        const candidateData = candidate as any;
         const skills = candidateSkills
           .filter(s => s.candidate_id === candidate.id)
           .map(s => s.skill_name);
         
         return {
           id: candidate.id,
-          name: user?.name || 'Unknown',
+          name: candidateData.name || 'Unknown',
           title: candidate.headline || 'Tax Professional',
-          location: `${candidate.location_city || ''}, ${candidate.location_state || ''}`,
+          location: `${candidate.location_city || ''}${candidate.location_state ? `, ${candidate.location_state}` : ''}`.trim() || 'Remote',
           experience: candidate.experience_years || 0,
-          skills: skills,
+          skills: skills.length > 0 ? skills : candidateData.taxexpertise || [],
           assessmentScore: Math.round((candidate.rating || 0) * 20), // Convert 5-star to 100 scale
           availability: candidate.availability === 'immediate' ? 'Immediate' : 
                        candidate.availability === '2_weeks' ? '2 weeks' : 
@@ -83,7 +107,7 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
           summary: candidate.summary || ''
         };
       });
-  }, [dbCandidates, users]);
+  }, [dbCandidates]);
 
   const allSkills = [
     "Form 1040",
@@ -105,7 +129,7 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
     );
   };
 
-  const filteredCandidates = mockCandidates.filter(candidate => {
+  const filteredCandidates = mappedCandidates.filter(candidate => {
     const matchesSearch = searchQuery === "" || 
       candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       candidate.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -332,7 +356,7 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
 
                       {/* Actions */}
                       <div className="ml-6 flex flex-col space-y-2">
-                        <Button onClick={() => onViewProfile(candidate.id)}>
+                        <Button onClick={() => setSelectedProfileId(candidate.id)}>
                           <Eye className="w-4 h-4 mr-2" />
                           View Profile
                         </Button>
@@ -349,6 +373,71 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
           </div>
         </div>
       </div>
+
+      {/* Profile Popup */}
+      <Dialog open={!!selectedProfileId} onOpenChange={(open) => !open && setSelectedProfileId(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Candidate Profile Details</DialogTitle>
+          </DialogHeader>
+          
+          {loadingProfile ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : profileData ? (
+            <div className="space-y-6 mt-4">
+              <div className="flex items-start space-x-4">
+                <div className="w-16 h-16 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xl">
+                  {profileData.name ? profileData.name.split(' ').map((n: string) => n[0]).join('') : '?'}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold">{profileData.name || 'Unknown'}</h2>
+                  <p className="text-muted-foreground">{profileData.headline || 'Tax Professional'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2 text-sm">
+                  <Mail className="w-4 h-4 text-muted-foreground" />
+                  <span>{profileData.email || 'Not provided'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <span>{profileData.phone || 'Not provided'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <span>{`${profileData.location_city || ''} ${profileData.location_state || ''}`.trim() || 'Remote'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <Briefcase className="w-4 h-4 text-muted-foreground" />
+                  <span>{profileData.experience_years || 0} years experience</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span>₹{profileData.hourly_rate || 0}/hr</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span className="capitalize">{profileData.availability?.replace('_', ' ') || 'Immediate'}</span>
+                </div>
+              </div>
+
+              {profileData.summary && (
+                <div>
+                  <h3 className="font-semibold mb-2">Summary</h3>
+                  <p className="text-sm text-muted-foreground">{profileData.summary}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-muted-foreground">
+              Failed to load profile details.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

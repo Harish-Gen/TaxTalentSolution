@@ -35,7 +35,7 @@ import {
   LinkedinIcon,
   Loader2
 } from "lucide-react";
-import { useCandidates, useUsers, candidateSkills } from "../../database";
+import { useCandidates, candidateSkills } from "../../database";
 import LocalDatabase from "../../database/localDb";
 import { loadProfile } from "../../database/profileStore";
 import { candidateService } from "../../api/candidateService";
@@ -215,14 +215,12 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   
   // Fetch from database
   const { candidates: dbCandidates, loading: candidatesLoading } = useCandidates();
-  const { users, loading: usersLoading } = useUsers();
   
-  const loading = candidatesLoading || usersLoading;
+  const loading = candidatesLoading;
   
   // Transform database candidates to component format
   const candidates: Candidate[] = useMemo(() => {
     return dbCandidates.map(candidate => {
-      const user = users.find(u => u.id === candidate.user_id);
       const candidateData = candidate as any;
       const skills = Array.isArray(candidateData.taxexpertise) 
         ? candidateData.taxexpertise 
@@ -230,9 +228,9 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
 
       return {
         id: candidate.id,
-        name: candidateData.name || user?.name || 'Unknown',
-        email: candidateData.email || user?.email || '',
-        phone: candidateData.phone || user?.phone || '',
+        name: candidateData.name || 'Unknown',
+        email: candidateData.email || '',
+        phone: candidateData.phone || '',
         location: candidate.location_city ? `${candidate.location_city}, ${candidate.location_state || ''}` : "Remote",
         experience: candidate.experience_years || 0,
         status: (statusOverrides[candidate.id] ?? candidate.status ?? 'pending') as "pending" | "approved" | "rejected",
@@ -243,7 +241,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         skills: skills
       };
     });
-  }, [dbCandidates, users, statusOverrides]);
+  }, [dbCandidates, statusOverrides]);
 
   const filteredCandidates = candidates.filter(candidate => {
     const matchesSearch = searchQuery === "" || 
