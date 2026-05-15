@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useJobs, useEmployers } from "../../database/hooks";
 import { jobService } from "../../api/jobService";
 import { toast } from "sonner";
@@ -11,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../ui/dialog";
 import { Separator } from "../ui/separator";
-import { 
-  Search, 
+import {
+  Search,
   Edit,
   Trash2,
   Briefcase,
@@ -64,6 +65,34 @@ const categories = [
   "General Tax"
 ];
 
+const CustomJobModal = ({ isOpen, onClose, title, description, children, footer }: any) => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+      <div className="bg-background rounded-lg border shadow-lg w-full max-w-4xl flex flex-col relative my-8" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
+        <button onClick={onClose} className="absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity z-10">
+          <XCircle className="w-5 h-5" />
+        </button>
+        <div className="p-6 border-b flex-shrink-0">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+        </div>
+        <div className="p-6 overflow-y-auto flex-1" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
+          {children}
+        </div>
+        <div className="p-6 border-t flex-shrink-0 flex justify-end gap-2 bg-gray-50/50">
+          {footer}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 export function JobManagement() {
   const { jobs: dbJobs, loading, refresh } = useJobs();
 
@@ -107,9 +136,9 @@ export function JobManagement() {
 
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.employerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.location_city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.location_state?.toLowerCase().includes(searchTerm.toLowerCase());
+      job.employerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.location_city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.location_state?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || job.status === filterStatus;
     const matchesType = filterType === "all" || job.job_type === filterType;
     return matchesSearch && matchesStatus && matchesType;
@@ -358,206 +387,203 @@ export function JobManagement() {
               <CardTitle>All Jobs</CardTitle>
               <CardDescription>View and manage job postings</CardDescription>
             </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create New Job
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create New Job Posting</DialogTitle>
-                  <DialogDescription>
-                    Fill in the details below to create a new job posting
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="jobTitle">Job Title *</Label>
-                    <Input
-                      id="jobTitle"
-                      value={newJob.title}
-                      onChange={(e) => setNewJob({...newJob, title: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="employer">Employer *</Label>
-                      <Select value={newJob.employer_id} onValueChange={(value) => setNewJob({...newJob, employer_id: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select employer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dbEmployers.map(emp => (
-                            <SelectItem key={emp.id} value={emp.id}>{emp.company_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location *</Label>
-                      <Input
-                        id="location"
-                        value={newJob.location}
-                        onChange={(e) => setNewJob({...newJob, location: e.target.value})}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="jobType">Job Type *</Label>
-                      <Select value={newJob.job_type} onValueChange={(value: any) => setNewJob({...newJob, job_type: value})}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="full-time">Full Time</SelectItem>
-                          <SelectItem value="part-time">Part Time</SelectItem>
-                          <SelectItem value="contract">Contract</SelectItem>
-                          <SelectItem value="temporary">Temporary</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="experienceLevel">Experience Level *</Label>
-                      <Select value={newJob.experience_level} onValueChange={(value: any) => setNewJob({...newJob, experience_level: value})}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="entry">Entry Level</SelectItem>
-                          <SelectItem value="mid">Mid Level</SelectItem>
-                          <SelectItem value="senior">Senior</SelectItem>
-                          <SelectItem value="lead">Lead/Manager</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category *</Label>
-                      <Select value={newJob.category} onValueChange={(value) => setNewJob({...newJob, category: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(cat => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="salaryMin">Min Salary (₹) *</Label>
-                      <Input
-                        id="salaryMin"
-                        type="number"
-                        value={newJob.salary_min}
-                        onChange={(e) => setNewJob({...newJob, salary_min: Number(e.target.value)})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="salaryMax">Max Salary (₹) *</Label>
-                      <Input
-                        id="salaryMax"
-                        type="number"
-                        value={newJob.salary_max}
-                        onChange={(e) => setNewJob({...newJob, salary_max: Number(e.target.value)})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="closingDate">Closing Date *</Label>
-                      <Input
-                        id="closingDate"
-                        type="date"
-                        value={newJob.closing_date}
-                        onChange={(e) => setNewJob({...newJob, closing_date: e.target.value})}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Job Description *</Label>
-                    <Textarea
-                      id="description"
-                      value={newJob.description}
-                      onChange={(e) => setNewJob({...newJob, description: e.target.value})}
-                      rows={4}
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Requirements</Label>
-                      <Button size="sm" variant="outline" onClick={() => addArrayField('requirements')}>
-                        <Plus className="w-3 h-3 mr-1" />Add
-                      </Button>
-                    </div>
-                    {newJob.requirements.map((req, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={req}
-                          onChange={(e) => updateArrayField('requirements', index, e.target.value)}
-                        />
-                        <Button size="sm" variant="ghost" onClick={() => removeArrayField('requirements', index)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Responsibilities</Label>
-                      <Button size="sm" variant="outline" onClick={() => addArrayField('responsibilities')}>
-                        <Plus className="w-3 h-3 mr-1" />Add
-                      </Button>
-                    </div>
-                    {newJob.responsibilities.map((resp, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={resp}
-                          onChange={(e) => updateArrayField('responsibilities', index, e.target.value)}
-                        />
-                        <Button size="sm" variant="ghost" onClick={() => removeArrayField('responsibilities', index)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Benefits</Label>
-                      <Button size="sm" variant="outline" onClick={() => addArrayField('benefits')}>
-                        <Plus className="w-3 h-3 mr-1" />Add
-                      </Button>
-                    </div>
-                    {newJob.benefits.map((benefit, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={benefit}
-                          onChange={(e) => updateArrayField('benefits', index, e.target.value)}
-                        />
-                        <Button size="sm" variant="ghost" onClick={() => removeArrayField('benefits', index)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <DialogFooter>
+            <Button onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create New Job
+            </Button>
+            <CustomJobModal
+              isOpen={isAddDialogOpen}
+              onClose={() => setIsAddDialogOpen(false)}
+              title="Create New Job Posting"
+              description="Fill in the details below to create a new job posting"
+              footer={
+                <>
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
                   <Button onClick={handleAddJob}>Create Job Posting</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </>
+              }
+            >
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="jobTitle">Job Title *</Label>
+                  <Input
+                    id="jobTitle"
+                    value={newJob.title}
+                    onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="employer">Employer *</Label>
+                    <Select value={newJob.employer_id} onValueChange={(value) => setNewJob({ ...newJob, employer_id: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dbEmployers.map(emp => (
+                          <SelectItem key={emp.id} value={emp.id}>{emp.company_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location *</Label>
+                    <Input
+                      id="location"
+                      value={newJob.location}
+                      onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="jobType">Job Type *</Label>
+                    <Select value={newJob.job_type} onValueChange={(value: any) => setNewJob({ ...newJob, job_type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full-time">Full Time</SelectItem>
+                        <SelectItem value="part-time">Part Time</SelectItem>
+                        <SelectItem value="contract">Contract</SelectItem>
+                        <SelectItem value="temporary">Temporary</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="experienceLevel">Experience Level *</Label>
+                    <Select value={newJob.experience_level} onValueChange={(value: any) => setNewJob({ ...newJob, experience_level: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="entry">Entry Level</SelectItem>
+                        <SelectItem value="mid">Mid Level</SelectItem>
+                        <SelectItem value="senior">Senior</SelectItem>
+                        <SelectItem value="lead">Lead/Manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select value={newJob.category} onValueChange={(value) => setNewJob({ ...newJob, category: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(cat => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryMin">Min Salary (₹) *</Label>
+                    <Input
+                      id="salaryMin"
+                      type="number"
+                      value={newJob.salary_min}
+                      onChange={(e) => setNewJob({ ...newJob, salary_min: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryMax">Max Salary (₹) *</Label>
+                    <Input
+                      id="salaryMax"
+                      type="number"
+                      value={newJob.salary_max}
+                      onChange={(e) => setNewJob({ ...newJob, salary_max: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="closingDate">Closing Date *</Label>
+                    <Input
+                      id="closingDate"
+                      type="date"
+                      value={newJob.closing_date}
+                      onChange={(e) => setNewJob({ ...newJob, closing_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Job Description *</Label>
+                  <Textarea
+                    id="description"
+                    value={newJob.description}
+                    onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+                    rows={4}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Requirements</Label>
+                    <Button size="sm" variant="outline" onClick={() => addArrayField('requirements')}>
+                      <Plus className="w-3 h-3 mr-1" />Add
+                    </Button>
+                  </div>
+                  {newJob.requirements.map((req, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={req}
+                        onChange={(e) => updateArrayField('requirements', index, e.target.value)}
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => removeArrayField('requirements', index)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Responsibilities</Label>
+                    <Button size="sm" variant="outline" onClick={() => addArrayField('responsibilities')}>
+                      <Plus className="w-3 h-3 mr-1" />Add
+                    </Button>
+                  </div>
+                  {newJob.responsibilities.map((resp, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={resp}
+                        onChange={(e) => updateArrayField('responsibilities', index, e.target.value)}
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => removeArrayField('responsibilities', index)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Benefits</Label>
+                    <Button size="sm" variant="outline" onClick={() => addArrayField('benefits')}>
+                      <Plus className="w-3 h-3 mr-1" />Add
+                    </Button>
+                  </div>
+                  {newJob.benefits.map((benefit, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={benefit}
+                        onChange={(e) => updateArrayField('benefits', index, e.target.value)}
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => removeArrayField('benefits', index)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CustomJobModal>
           </div>
         </CardHeader>
         <CardContent>
@@ -606,9 +632,9 @@ export function JobManagement() {
             ) : (
               filteredJobs.map((job) => (
                 <Card key={job.id} className="overflow-hidden hover:border-blue-200 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-2">
                           <h3 className="font-semibold text-lg">{job.title}</h3>
                           {getStatusBadge(job.status)}
@@ -625,7 +651,7 @@ export function JobManagement() {
                           </div>
                           <div className="flex items-center space-x-1">
                             <DollarSign className="w-4 h-4" />
-                            <span>₹{(job.salary_min/100000).toFixed(1)}L - ₹{(job.salary_max/100000).toFixed(1)}L</span>
+                            <span>₹{(job.salary_min / 100000).toFixed(1)}L - ₹{(job.salary_max / 100000).toFixed(1)}L</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <Award className="w-4 h-4" />
@@ -647,41 +673,41 @@ export function JobManagement() {
                           <span>•</span>
                           <span>Closes: {job.closing_date ? new Date(job.closing_date).toLocaleDateString() : 'N/A'}</span>
                         </div>
-                    </div>
-                    <div className="flex items-center space-x-2 ml-4">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedJob(job);
-                          setIsViewDialogOpen(true);
-                        }}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditClick(job)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      {job.status === "active" ? (
-                        <Button variant="ghost" size="icon" className="text-orange-600" onClick={() => handleStatusChange(job.id, "closed")}>
-                          <XCircle className="w-4 h-4" />
+                      </div>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedJob(job);
+                            setIsViewDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="text-green-600" onClick={() => handleStatusChange(job.id, "active")}>
-                          <CheckCircle className="w-4 h-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClick(job)}
+                        >
+                          <Edit className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setJobToDelete(job.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                        {job.status === "active" ? (
+                          <Button variant="ghost" size="icon" className="text-orange-600" onClick={() => handleStatusChange(job.id, "closed")}>
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="text-green-600" onClick={() => handleStatusChange(job.id, "active")}>
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setJobToDelete(job.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
               ))
             )}
           </div>
@@ -689,206 +715,207 @@ export function JobManagement() {
       </Card>
 
       {/* Edit Job Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Job Posting</DialogTitle>
-            <DialogDescription>Update the job details below</DialogDescription>
-          </DialogHeader>
-          {editJob && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="editJobTitle">Job Title *</Label>
-                <Input
-                  id="editJobTitle"
-                  value={editJob.title}
-                  onChange={(e) => setEditJob({...editJob, title: e.target.value})}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editEmployer">Employer *</Label>
-                  <Select value={editJob.employer_id} onValueChange={(value) => setEditJob({...editJob, employer_id: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select employer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dbEmployers.map(emp => (
-                        <SelectItem key={emp.id} value={emp.id}>{emp.company_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editLocation">Location *</Label>
-                  <Input
-                    id="editLocation"
-                    value={editJob.location}
-                    onChange={(e) => setEditJob({...editJob, location: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editJobType">Job Type *</Label>
-                  <Select value={editJob.job_type} onValueChange={(value: any) => setEditJob({...editJob, job_type: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full-time">Full Time</SelectItem>
-                      <SelectItem value="part-time">Part Time</SelectItem>
-                      <SelectItem value="contract">Contract</SelectItem>
-                      <SelectItem value="temporary">Temporary</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editExperienceLevel">Experience Level *</Label>
-                  <Select value={editJob.experience_level} onValueChange={(value: any) => setEditJob({...editJob, experience_level: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="entry">Entry Level</SelectItem>
-                      <SelectItem value="mid">Mid Level</SelectItem>
-                      <SelectItem value="senior">Senior</SelectItem>
-                      <SelectItem value="lead">Lead/Manager</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editCategory">Category *</Label>
-                  <Select value={editJob.category} onValueChange={(value) => setEditJob({...editJob, category: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map(cat => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editSalaryMin">Min Salary (₹) *</Label>
-                  <Input
-                    id="editSalaryMin"
-                    type="number"
-                    value={editJob.salary_min}
-                    onChange={(e) => setEditJob({...editJob, salary_min: Number(e.target.value)})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editSalaryMax">Max Salary (₹) *</Label>
-                  <Input
-                    id="editSalaryMax"
-                    type="number"
-                    value={editJob.salary_max}
-                    onChange={(e) => setEditJob({...editJob, salary_max: Number(e.target.value)})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editClosingDate">Closing Date *</Label>
-                  <Input
-                    id="editClosingDate"
-                    type="date"
-                    value={editJob.closing_date}
-                    onChange={(e) => setEditJob({...editJob, closing_date: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="editDescription">Job Description *</Label>
-                <Textarea
-                  id="editDescription"
-                  value={editJob.description}
-                  onChange={(e) => setEditJob({...editJob, description: e.target.value})}
-                  rows={4}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Requirements</Label>
-                  <Button size="sm" variant="outline" onClick={() => addArrayField('requirements', true)}>
-                    <Plus className="w-3 h-3 mr-1" />Add
-                  </Button>
-                </div>
-                {editJob.requirements.map((req: string, index: number) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={req}
-                      onChange={(e) => updateArrayField('requirements', index, e.target.value, true)}
-                    />
-                    <Button size="sm" variant="ghost" onClick={() => removeArrayField('requirements', index, true)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Responsibilities</Label>
-                  <Button size="sm" variant="outline" onClick={() => addArrayField('responsibilities', true)}>
-                    <Plus className="w-3 h-3 mr-1" />Add
-                  </Button>
-                </div>
-                {editJob.responsibilities.map((resp: string, index: number) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={resp}
-                      onChange={(e) => updateArrayField('responsibilities', index, e.target.value, true)}
-                    />
-                    <Button size="sm" variant="ghost" onClick={() => removeArrayField('responsibilities', index, true)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Benefits</Label>
-                  <Button size="sm" variant="outline" onClick={() => addArrayField('benefits', true)}>
-                    <Plus className="w-3 h-3 mr-1" />Add
-                  </Button>
-                </div>
-                {editJob.benefits.map((benefit: string, index: number) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={benefit}
-                      onChange={(e) => updateArrayField('benefits', index, e.target.value, true)}
-                    />
-                    <Button size="sm" variant="ghost" onClick={() => removeArrayField('benefits', index, true)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
+      <CustomJobModal
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        title="Edit Job Posting"
+        description="Update the job details below"
+        footer={
+          <>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveEdit}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        {editJob && (
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="editJobTitle">Job Title *</Label>
+              <Input
+                id="editJobTitle"
+                value={editJob.title}
+                onChange={(e) => setEditJob({ ...editJob, title: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editEmployer">Employer *</Label>
+                <Select value={editJob.employer_id} onValueChange={(value) => setEditJob({ ...editJob, employer_id: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dbEmployers.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id}>{emp.company_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editLocation">Location *</Label>
+                <Input
+                  id="editLocation"
+                  value={editJob.location}
+                  onChange={(e) => setEditJob({ ...editJob, location: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editJobType">Job Type *</Label>
+                <Select value={editJob.job_type} onValueChange={(value: any) => setEditJob({ ...editJob, job_type: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full-time">Full Time</SelectItem>
+                    <SelectItem value="part-time">Part Time</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="temporary">Temporary</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editExperienceLevel">Experience Level *</Label>
+                <Select value={editJob.experience_level} onValueChange={(value: any) => setEditJob({ ...editJob, experience_level: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="entry">Entry Level</SelectItem>
+                    <SelectItem value="mid">Mid Level</SelectItem>
+                    <SelectItem value="senior">Senior</SelectItem>
+                    <SelectItem value="lead">Lead/Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editCategory">Category *</Label>
+                <Select value={editJob.category} onValueChange={(value) => setEditJob({ ...editJob, category: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSalaryMin">Min Salary (₹) *</Label>
+                <Input
+                  id="editSalaryMin"
+                  type="number"
+                  value={editJob.salary_min}
+                  onChange={(e) => setEditJob({ ...editJob, salary_min: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editSalaryMax">Max Salary (₹) *</Label>
+                <Input
+                  id="editSalaryMax"
+                  type="number"
+                  value={editJob.salary_max}
+                  onChange={(e) => setEditJob({ ...editJob, salary_max: Number(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editClosingDate">Closing Date *</Label>
+                <Input
+                  id="editClosingDate"
+                  type="date"
+                  value={editJob.closing_date}
+                  onChange={(e) => setEditJob({ ...editJob, closing_date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editDescription">Job Description *</Label>
+              <Textarea
+                id="editDescription"
+                value={editJob.description}
+                onChange={(e) => setEditJob({ ...editJob, description: e.target.value })}
+                rows={4}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Requirements</Label>
+                <Button size="sm" variant="outline" onClick={() => addArrayField('requirements', true)}>
+                  <Plus className="w-3 h-3 mr-1" />Add
+                </Button>
+              </div>
+              {editJob.requirements.map((req: string, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={req}
+                    onChange={(e) => updateArrayField('requirements', index, e.target.value, true)}
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => removeArrayField('requirements', index, true)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Responsibilities</Label>
+                <Button size="sm" variant="outline" onClick={() => addArrayField('responsibilities', true)}>
+                  <Plus className="w-3 h-3 mr-1" />Add
+                </Button>
+              </div>
+              {editJob.responsibilities.map((resp: string, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={resp}
+                    onChange={(e) => updateArrayField('responsibilities', index, e.target.value, true)}
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => removeArrayField('responsibilities', index, true)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Benefits</Label>
+                <Button size="sm" variant="outline" onClick={() => addArrayField('benefits', true)}>
+                  <Plus className="w-3 h-3 mr-1" />Add
+                </Button>
+              </div>
+              {editJob.benefits.map((benefit: string, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={benefit}
+                    onChange={(e) => updateArrayField('benefits', index, e.target.value, true)}
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => removeArrayField('benefits', index, true)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CustomJobModal>
 
       {/* View Job Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl">
           {selectedJob && (
-            <div className="space-y-6">
+            <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
               <DialogHeader>
                 <div className="flex items-center justify-between pr-8">
                   <DialogTitle className="text-2xl">{selectedJob.title}</DialogTitle>
@@ -926,7 +953,7 @@ export function JobManagement() {
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-green-600">₹{(selectedJob.salary_min/100000).toFixed(1)}L</p>
+                      <p className="text-lg font-bold text-green-600">₹{(selectedJob.salary_min / 100000).toFixed(1)}L</p>
                       <p className="text-xs text-muted-foreground mt-1">Min Salary</p>
                     </div>
                   </CardContent>
@@ -934,7 +961,7 @@ export function JobManagement() {
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-green-600">₹{(selectedJob.salary_max/100000).toFixed(1)}L</p>
+                      <p className="text-lg font-bold text-green-600">₹{(selectedJob.salary_max / 100000).toFixed(1)}L</p>
                       <p className="text-xs text-muted-foreground mt-1">Max Salary</p>
                     </div>
                   </CardContent>
