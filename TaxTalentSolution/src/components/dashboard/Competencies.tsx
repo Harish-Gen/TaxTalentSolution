@@ -7,7 +7,8 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { CheckCircle, Briefcase, Percent, Plus, Trash2, Save } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
+import { competencyService } from "../../api/competencyService";
 
 type SkillLevel = "basic" | "intermediate" | "expert" | "not-applicable" | "";
 
@@ -35,21 +36,69 @@ export function Competencies({ user }: CompetenciesProps) {
     { id: `role-${Date.now()}`, responsibility: "", percentage: "" }
   ]);
   const [customSkills, setCustomSkills] = useState<string[]>([]);
+  const [recordId, setRecordId] = useState<string | null>(null);
+
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Load persisted competencies on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved.skillRatings) setSkillRatings(saved.skillRatings);
-      if (saved.whyHireMe !== undefined) setWhyHireMe(saved.whyHireMe);
-      if (saved.roleEntries?.length) setRoleEntries(saved.roleEntries);
-      if (saved.customSkills?.length) setCustomSkills(saved.customSkills);
-    } catch {
-      // ignore corrupt data
-    }
-  }, [STORE_KEY]);
+    const fetchCompetencies = async () => {
+      const storedUserId = sessionStorage.getItem('userId');
+      const targetUserId = storedUserId || userId;
+      
+      if (!targetUserId || targetUserId === 'guest') {
+        setIsInitialLoading(false);
+        return;
+      }
+
+      try {
+        const data = await competencyService.getCompetencies(targetUserId);
+        
+        // Handle array responses by taking the latest record (sorted by savedAt or createdon)
+        let result = null;
+        if (Array.isArray(data) && data.length > 0) {
+          result = [...data].sort((a, b) => {
+            const dateA = new Date(a.competenciesjson?.savedAt || a.createdon || 0).getTime();
+            const dateB = new Date(b.competenciesjson?.savedAt || b.createdon || 0).getTime();
+            return dateB - dateA; // Descending
+          })[0];
+        } else {
+          result = data;
+        }
+        
+        if (result) {
+          if (result.id) setRecordId(result.id);
+          
+          if (result.competenciesjson) {
+            const saved = typeof result.competenciesjson === 'string' 
+              ? JSON.parse(result.competenciesjson) 
+              : result.competenciesjson;
+              
+            if (saved.skillRatings) setSkillRatings(saved.skillRatings);
+            if (saved.whyHireMe !== undefined) setWhyHireMe(saved.whyHireMe);
+            if (saved.roleEntries?.length) {
+              setRoleEntries(saved.roleEntries);
+            } else if (saved.roleDistribution) {
+              const entries = Object.entries(saved.roleDistribution).map(([resp, perc]) => ({
+                id: `role-${Math.random().toString(36).substr(2, 9)}`,
+                responsibility: resp,
+                percentage: String(perc)
+              }));
+              if (entries.length) setRoleEntries(entries);
+            }
+            if (saved.customSkills?.length) setCustomSkills(saved.customSkills);
+            if (saved.savedAt) setLastSavedAt(new Date(saved.savedAt));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load competencies from backend:", err);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    fetchCompetencies();
+  }, [userId]);
   const [newSkillInput, setNewSkillInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -213,11 +262,20 @@ export function Competencies({ user }: CompetenciesProps) {
     setIsSaving(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const storedUserId = sessionStorage.getItem('userId');
+      const targetUserId = storedUserId || userId;
+
+      if (!targetUserId || targetUserId === 'guest') {
+        toast.error("User session not found. Please log in again.");
+        setIsSaving(false);
+        return;
+      }
+
       const competencyData = {
         skillRatings,
         whyHireMe,
+        roleEntries,
+        customSkills,
         roleDistribution: roleEntries.reduce((acc, entry) => {
           acc[entry.responsibility] = entry.percentage;
           return acc;
@@ -225,20 +283,23 @@ export function Competencies({ user }: CompetenciesProps) {
         savedAt: new Date().toISOString()
       };
       
-      // Persist to localStorage
-      localStorage.setItem(STORE_KEY, JSON.stringify({
-        skillRatings,
-        whyHireMe,
-        roleEntries,
-        customSkills,
-        savedAt: competencyData.savedAt,
-      }));
+      const response = await competencyService.upsertCompetencies({
+        id: recordId || undefined,
+        userid: targetUserId,
+        competenciesjson: competencyData,
+        isactive: true
+      });
+
+      if (response && response.id) {
+        setRecordId(response.id);
+      }
 
       const savedTime = new Date();
       setLastSavedAt(savedTime);
       setIsSaved(true);
-      toast.success("Competencies saved successfully!");
+      toast.success("Competencies saved successfully to profile!");
     } catch (error) {
+      console.error("Save error:", error);
       toast.error("Failed to save competencies. Please try again.");
     } finally {
       setIsSaving(false);
@@ -247,6 +308,14 @@ export function Competencies({ user }: CompetenciesProps) {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {isInitialLoading && (
+        <div className="fixed inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card p-6 rounded-xl shadow-xl flex items-center gap-4">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="font-medium">Loading your competencies...</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <Card>
         <CardHeader>

@@ -27,6 +27,7 @@ import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { validateLocalLogin, buildMockUser, localCredentials } from "../database/localAuth";
 import { registerUser, authenticateStoredUser, buildUserFromStored } from "../database/userStore";
 import { signInWithB2C, signUpWithB2C } from "../utils/b2c/authService";
+import { userService } from "../api/userService";
 
 interface LoginPageProps {
   onBack: () => void;
@@ -119,7 +120,9 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || (!isLogin && !name) || (!isLogin && !phone)) {
+    
+    // For login, only email is required now. For signup, all fields are required.
+    if (!email || (!isLogin && (!password || !name || !phone))) {
       showMessage("Please fill in all required fields.", "error");
       return;
     }
@@ -127,34 +130,74 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
     setLoading(true);
     try {
       if (isLogin) {
-        // 1. Try demo credentials first
-        const localUser = validateLocalLogin(email, password);
-        if (localUser) {
-          showMessage(`Welcome back, ${localUser.name}!`, "success");
-          setTimeout(() => {
-            onLocalLogin?.(buildMockUser(localUser));
-          }, 600);
-          setLoading(false);
-          return;
-        }
+        try {
+          const response = await userService.login(email);
+          if (response && response.user) {
+            const { user } = response;
+            // Store in session storage
+            sessionStorage.setItem('userId', user.id);
+            sessionStorage.setItem('userName', user.name || '');
+            sessionStorage.setItem('roleId', user.roleid || '');
+            sessionStorage.setItem('roleName', user.role?.name || '');
+            
+            if (user.candidate?.currenttitle) {
+              sessionStorage.setItem('currentTitle', user.candidate.currenttitle);
+            }
+            
+            showMessage(`Welcome back, ${user.name}!`, "success");
+            
+            setTimeout(() => {
+              // Create a user object compatible with App.tsx's handleLocalLogin
+              const mappedUser = {
+                id: user.id,
+                email: user.email,
+                user_metadata: {
+                  name: user.name,
+                  role: user.role?.name.toLowerCase() === 'admin' ? 'admin' : (user.role?.name.toLowerCase() === 'employer' ? 'employer' : 'candidate')
+                }
+              };
+              onLocalLogin?.(mappedUser as any);
+            }, 600);
+            setLoading(false);
+            return;
+          }
+        } catch (err: any) {
+          // If backend fails, fall back to existing local/supabase logic
+          console.error("Backend login failed, falling back to local auth", err);
+          
+          // 1. Try demo credentials first
+          if (password) {
+            const localUser = validateLocalLogin(email, password);
+            if (localUser) {
+              showMessage(`Welcome back, ${localUser.name}!`, "success");
+              setTimeout(() => {
+                onLocalLogin?.(buildMockUser(localUser));
+              }, 600);
+              setLoading(false);
+              return;
+            }
 
-        // 2. Try registered accounts (localStorage)
-        const storedUser = await authenticateStoredUser(email, password);
-        if (storedUser) {
-          showMessage(`Welcome back, ${storedUser.name}!`, "success");
-          setTimeout(() => {
-            onLocalLogin?.(buildUserFromStored(storedUser));
-          }, 600);
-          setLoading(false);
-          return;
-        }
+            // 2. Try registered accounts (localStorage)
+            const storedUser = await authenticateStoredUser(email, password);
+            if (storedUser) {
+              showMessage(`Welcome back, ${storedUser.name}!`, "success");
+              setTimeout(() => {
+                onLocalLogin?.(buildUserFromStored(storedUser));
+              }, 600);
+              setLoading(false);
+              return;
+            }
 
-        // 3. Fall back to Supabase
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          showMessage(`Login failed: ${error.message}`, "error");
-        } else {
-          showMessage("Login successful! Welcome back.", "success");
+            // 3. Fall back to Supabase
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+              showMessage(`Login failed: ${error.message}`, "error");
+            } else {
+              showMessage("Login successful! Welcome back.", "success");
+            }
+          } else {
+            showMessage("Login failed. Please check your email or provide a password for local auth.", "error");
+          }
         }
       } else {
         // Sign up — register account locally (localStorage)
@@ -511,7 +554,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 pr-10"
                       placeholder="Enter your password"
-                      required
+                      required={!isLogin}
                     />
                     <Button
                       type="button"

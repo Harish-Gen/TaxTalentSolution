@@ -3,6 +3,7 @@ import type { Candidate as DBCandidate, CandidateStatus } from '../database/type
 
 export interface BackendCandidate {
   id: string;
+  name?: string;
   firstname?: string;
   lastname?: string;
   email?: string;
@@ -33,7 +34,7 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & { name?: str
   return {
     id: backend.id,
     user_id: '', 
-    name: `${backend.firstname || ''} ${backend.lastname || ''}`.trim(),
+    name: backend.name || `${backend.firstname || ''} ${backend.lastname || ''}`.trim() || 'Unknown',
     firstname: backend.firstname,
     lastname: backend.lastname,
     email: backend.email,
@@ -60,6 +61,7 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & { name?: str
 function mapToBackend(frontend: any): Partial<BackendCandidate> {
   return {
     id: frontend.id,
+    name: frontend.name,
     firstname: frontend.firstname,
     lastname: frontend.lastname,
     email: frontend.email,

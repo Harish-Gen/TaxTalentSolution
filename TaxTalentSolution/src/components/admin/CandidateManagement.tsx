@@ -209,7 +209,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [editForm, setEditForm] = useState({
-    firstname: "", lastname: "", email: "", phone: "", location_city: "", location_state: "",
+    name: "", email: "", phone: "", location_city: "", location_state: "",
     experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
   });
   
@@ -305,8 +305,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       const fresh = await candidateService.getCandidateById(candidate.id);
       setEditingCandidate(candidate);
       setEditForm({
-        firstname: fresh.name?.split(' ')[0] || candidate.name.split(' ')[0] || '',
-        lastname: fresh.name?.split(' ').slice(1).join(' ') || candidate.name.split(' ').slice(1).join(' ') || '',
+        name: fresh.name || candidate.name || '',
         email: fresh.email || candidate.email,
         phone: fresh.phone || candidate.phone,
         location_city: fresh.location_city || '',
@@ -323,10 +322,8 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       
       const dbRecord = dbCandidates.find(c => c.id === candidate.id);
       setEditingCandidate(candidate);
-      const candidateData = candidate as any;
       setEditForm({
-        firstname: candidateData.firstname || candidate.name.split(' ')[0] || '',
-        lastname: candidateData.lastname || candidate.name.split(' ').slice(1).join(' ') || '',
+        name: candidate.name,
         email: candidate.email,
         phone: candidate.phone,
         location_city: dbRecord?.location_city || '',
@@ -346,8 +343,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
     try {
       await candidateService.upsertCandidate({
         id: editingCandidate.id,
-        firstname: editForm.firstname,
-        lastname: editForm.lastname,
+        name: editForm.name,
         email: editForm.email,
         phone: editForm.phone,
         location_city: editForm.location_city,
@@ -363,7 +359,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       if (selectedCandidate?.id === editingCandidate.id) {
         setSelectedCandidate(prev => prev ? {
           ...prev,
-          name: `${editForm.firstname} ${editForm.lastname}`.trim(),
+          name: editForm.name,
           email: editForm.email,
           phone: editForm.phone,
           location: `${editForm.location_city}, ${editForm.location_state}`,
@@ -380,15 +376,14 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   };
 
   const handleCreateSave = async () => {
-    if (!editForm.firstname) {
-      toast.error("First Name is required");
+    if (!editForm.name) {
+      toast.error("Name is required");
       return;
     }
     
     try {
       await candidateService.upsertCandidate({
-        firstname: editForm.firstname,
-        lastname: editForm.lastname,
+        name: editForm.name,
         email: editForm.email,
         phone: editForm.phone,
         location_city: editForm.location_city,
@@ -405,7 +400,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       setIsAddingCandidate(false);
       // Reset form
       setEditForm({
-        firstname: "", lastname: "", email: "", phone: "", location_city: "", location_state: "",
+        name: "", email: "", phone: "", location_city: "", location_state: "",
         experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
       });
     } catch (error) {
@@ -458,7 +453,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       setIsAddingCandidate(false);
       if (!isEditing) {
         setEditForm({
-          firstname: "", lastname: "", email: "", phone: "", location_city: "", location_state: "",
+          name: "", email: "", phone: "", location_city: "", location_state: "",
           experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
         });
       }
@@ -483,15 +478,10 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <Label>First Name</Label>
-                <Input className="mt-1" value={editForm.firstname}
-                  onChange={e => setEditForm(f => ({ ...f, firstname: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Last Name</Label>
-                <Input className="mt-1" value={editForm.lastname}
-                  onChange={e => setEditForm(f => ({ ...f, lastname: e.target.value }))} />
+              <div className="md:col-span-2">
+                <Label>Full Name</Label>
+                <Input className="mt-1" value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
                 <Label>Email</Label>
@@ -567,7 +557,9 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
 
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={handleBack}>Cancel</Button>
-              <Button onClick={handleEditSave}>Save Changes</Button>
+              <Button onClick={isEditing ? handleEditSave : handleCreateSave}>
+                {isEditing ? "Save Changes" : "Create Candidate"}
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -9,6 +9,25 @@ export interface BackendUser {
   roleid?: string;
   isactive?: boolean;
   employer_ids?: string[];
+  role?: {
+    id: string;
+    name: string;
+    description: string;
+    isactive: boolean;
+  };
+  candidate?: {
+    id: string;
+    currenttitle?: string;
+    location?: {
+      city: string;
+      state: string;
+    };
+  };
+}
+
+export interface LoginResponse {
+  message: string;
+  user: BackendUser;
 }
 
 // Temporary mapping for roles since backend uses roleid UUIDs
@@ -31,7 +50,7 @@ function mapToFrontendUser(backend: BackendUser): any {
     name: backend.name || '',
     email: backend.email || '',
     phone: backend.phone || '',
-    role: backend.roleid ? (REVERSE_ROLE_MAP[backend.roleid] || 'viewer') : 'viewer',
+    role: backend.role?.name || (backend.roleid ? (REVERSE_ROLE_MAP[backend.roleid] || 'viewer') : 'viewer'),
     status: backend.isactive ? 'active' : 'inactive',
     assignedEmployers: backend.employer_ids || [],
     permissions: [], // Permissions will be calculated on frontend based on role
@@ -53,6 +72,10 @@ function mapToBackend(frontend: any): Partial<BackendUser> {
 }
 
 export const userService = {
+  async login(email: string): Promise<LoginResponse> {
+    return await apiRequest<LoginResponse>('/api/users/login', 'POST', { email });
+  },
+
   async getUsers(): Promise<any[]> {
     const data = await apiRequest<BackendUser[]>('/api/users/');
     return data.map(mapToFrontendUser);
