@@ -37,6 +37,24 @@ class UserRepository(IUserRepository):
         rows = cursor.fetchall()
         return [self._row_to_dict(cursor, row) for row in rows]
 
+    def _get_candidate_details(self, cursor, user_id: str) -> Optional[dict]:
+        cursor.execute("SELECT * FROM candidates WHERE userid = ? AND isactive = 1", str(user_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        columns = [column[0] for column in cursor.description]
+        data = dict(zip(columns, row))
+        
+        # Parse JSON fields if they are strings
+        import json
+        for json_field in ['location', 'taxexpertise', 'certifications']:
+            if data.get(json_field):
+                try:
+                    data[json_field] = json.loads(data[json_field])
+                except Exception:
+                    pass
+        return data
+
     def get_user_by_id(self, user_id: UUID, include_inactive: bool = False) -> Optional[UserResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -50,6 +68,11 @@ class UserRepository(IUserRepository):
                 data['employer_ids'] = self._get_employer_ids_for_user(cursor, str(user_id))
                 data['role'] = self._get_role_for_user(cursor, data.get('roleid'))
                 data['employers'] = self._get_employers_for_user(cursor, str(user_id))
+                
+                # If role is candidate, fetch candidate details
+                if str(data.get('roleid')).upper() == settings.default_candidate_role_id.upper():
+                    data['candidate'] = self._get_candidate_details(cursor, str(user_id))
+                
                 return UserResponse(**data)
             return None
 
@@ -64,6 +87,11 @@ class UserRepository(IUserRepository):
                 data['employer_ids'] = self._get_employer_ids_for_user(cursor, user_id)
                 data['role'] = self._get_role_for_user(cursor, data.get('roleid'))
                 data['employers'] = self._get_employers_for_user(cursor, user_id)
+                
+                # If role is candidate, fetch candidate details
+                if str(data.get('roleid')).upper() == settings.default_candidate_role_id.upper():
+                    data['candidate'] = self._get_candidate_details(cursor, user_id)
+                    
                 return UserResponse(**data)
             return None
 
@@ -77,9 +105,15 @@ class UserRepository(IUserRepository):
             results = []
             for row in rows:
                 data = dict(zip(columns, row))
-                data['employer_ids'] = self._get_employer_ids_for_user(cursor, str(data['id']))
+                user_id = str(data['id'])
+                data['employer_ids'] = self._get_employer_ids_for_user(cursor, user_id)
                 data['role'] = self._get_role_for_user(cursor, data.get('roleid'))
-                data['employers'] = self._get_employers_for_user(cursor, str(data['id']))
+                data['employers'] = self._get_employers_for_user(cursor, user_id)
+                
+                # If role is candidate, fetch candidate details
+                if str(data.get('roleid')).upper() == settings.default_candidate_role_id.upper():
+                    data['candidate'] = self._get_candidate_details(cursor, user_id)
+                    
                 results.append(UserResponse(**data))
             return results
 
