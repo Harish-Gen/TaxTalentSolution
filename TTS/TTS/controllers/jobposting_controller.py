@@ -23,6 +23,16 @@ def get_all_jobpostings(repo: IJobPostingRepository = Depends(get_jobposting_rep
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/bestmatches/{jobtitle}", response_model=List[JobPostingResponse])
+def get_best_matches(jobtitle: str, repo: IJobPostingRepository = Depends(get_jobposting_repository)):
+    """
+    Retrieve job postings that match the provided job title.
+    """
+    try:
+        return repo.get_jobpostings_by_title(jobtitle)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{jobposting_id}", response_model=JobPostingResponse)
 def get_jobposting(jobposting_id: UUID, repo: IJobPostingRepository = Depends(get_jobposting_repository)):
     """

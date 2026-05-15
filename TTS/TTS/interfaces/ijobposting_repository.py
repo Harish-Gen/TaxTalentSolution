@@ -13,5 +13,9 @@ class IJobPostingRepository(ABC):
         pass
 
     @abstractmethod
+    def get_jobpostings_by_title(self, jobtitle: str) -> List[JobPostingResponse]:
+        pass
+
+    @abstractmethod
     def upsert_jobposting(self, jobposting: JobPostingCreateUpdate) -> JobPostingResponse:
         pass

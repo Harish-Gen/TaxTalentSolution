@@ -43,6 +43,13 @@ class JobPostingRepository(IJobPostingRepository):
             rows = cursor.fetchall()
             return [JobPostingResponse(**self._row_to_dict(cursor, row)) for row in rows]
 
+    def get_jobpostings_by_title(self, jobtitle: str) -> List[JobPostingResponse]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM jobpostings WHERE jobtitle LIKE ? AND isactive = 1", f"%{jobtitle}%")
+            rows = cursor.fetchall()
+            return [JobPostingResponse(**self._row_to_dict(cursor, row)) for row in rows]
+
     def upsert_jobposting(self, jobposting: JobPostingCreateUpdate) -> JobPostingResponse:
         data = jobposting.dict(exclude_unset=True)
         
