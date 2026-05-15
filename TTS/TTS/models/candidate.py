@@ -5,8 +5,8 @@ from datetime import datetime
 
 class CandidateCreateUpdate(BaseModel):
     id: Optional[UUID] = None
-    firstname: Optional[str] = None
-    lastname: Optional[str] = None
+    userid: Optional[UUID] = None
+    name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     location: Optional[Union[Dict, str]] = None
@@ -24,9 +24,17 @@ class CandidateCreateUpdate(BaseModel):
     stage: Optional[str] = None
     isactive: Optional[bool] = None
 
+from pydantic import Field
+
 class CandidateResponse(CandidateCreateUpdate):
     id: UUID
     createdon: Optional[datetime] = None
     createdby: Optional[str] = None
     modifiedon: Optional[datetime] = None
     modifiedby: Optional[str] = None
+    user: Optional[dict] = None
+
+    # Exclude these from the response since they are nested in the user object
+    name: Optional[str] = Field(default=None, exclude=True)
+    email: Optional[EmailStr] = Field(default=None, exclude=True)
+    phone: Optional[str] = Field(default=None, exclude=True)

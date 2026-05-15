@@ -12,4 +12,8 @@ class Settings:
     def database_connection_string(self) -> str:
         return self._config.get("Database", {}).get("ConnectionString", "")
 
+    @property
+    def default_candidate_role_id(self) -> str:
+        return self._config.get("AppConfig", {}).get("DefaultCandidateRoleId", "")
+
 settings = Settings()
