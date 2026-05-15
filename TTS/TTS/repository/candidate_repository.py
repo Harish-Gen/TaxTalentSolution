@@ -103,6 +103,13 @@ class CandidateRepository(ICandidateRepository):
                             user_vals.append(str(userid))
                             cursor.execute(f"UPDATE users SET {', '.join(user_sets)} WHERE id = ?", user_vals)
                     else:
+                        # If email is provided, check if a user already exists with this email
+                        if email:
+                            cursor.execute("SELECT id FROM users WHERE email = ?", email)
+                            if cursor.fetchone():
+                                raise ValueError("A user with this email already exists.")
+                        
+                        # Create brand new user
                         cursor.execute("""
                             INSERT INTO users (name, email, phone, roleid) 
                             OUTPUT INSERTED.id 

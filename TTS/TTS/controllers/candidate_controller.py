@@ -53,6 +53,8 @@ def upsert_candidate(candidate: CandidateCreateUpdate, repo: ICandidateRepositor
                 raise HTTPException(status_code=404, detail="Candidate not found for update")
             
         return repo.upsert_candidate(candidate)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
     except Exception as e:
