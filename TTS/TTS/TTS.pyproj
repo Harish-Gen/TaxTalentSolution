@@ -32,6 +32,7 @@
     <Compile Include="controllers\user_controller.py" />
     <Compile Include="controllers\question_controller.py" />
     <Compile Include="controllers\usercompetency_controller.py" />
+    <Compile Include="controllers\userassessment_controller.py" />
     <Compile Include="interfaces\__init__.py" />
     <Compile Include="interfaces\icandidate_repository.py" />
     <Compile Include="interfaces\iassessment_repository.py" />
@@ -40,6 +41,7 @@
     <Compile Include="interfaces\iuser_repository.py" />
     <Compile Include="interfaces\iquestion_repository.py" />
     <Compile Include="interfaces\iusercompetency_repository.py" />
+    <Compile Include="interfaces\iuserassessment_repository.py" />
     <Compile Include="models\__init__.py" />
     <Compile Include="models\candidate.py" />
     <Compile Include="models\assessment.py" />
@@ -48,6 +50,7 @@
     <Compile Include="models\user.py" />
     <Compile Include="models\question.py" />
     <Compile Include="models\usercompetency.py" />
+    <Compile Include="models\userassessment.py" />
     <Compile Include="repository\__init__.py" />
     <Compile Include="repository\candidate_repository.py" />
     <Compile Include="repository\assessment_repository.py" />
@@ -56,6 +59,7 @@
     <Compile Include="repository\user_repository.py" />
     <Compile Include="repository\question_repository.py" />
     <Compile Include="repository\usercompetency_repository.py" />
+    <Compile Include="repository\userassessment_repository.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="config\" />
