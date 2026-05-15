@@ -50,6 +50,8 @@ def upsert_employer(employer: EmployerCreateUpdate, repo: IEmployerRepository = 
                 raise HTTPException(status_code=404, detail="Employer not found for update")
             
         return repo.upsert_employer(employer)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except HTTPException:
         raise
     except Exception as e:

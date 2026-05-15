@@ -16,4 +16,8 @@ class Settings:
     def default_candidate_role_id(self) -> str:
         return self._config.get("AppConfig", {}).get("DefaultCandidateRoleId", "")
 
+    @property
+    def default_employer_role_id(self) -> str:
+        return self._config.get("AppConfig", {}).get("DefaultEmployerRoleId", "")
+
 settings = Settings()
