@@ -19,6 +19,10 @@ import LocalDatabase, {
   skillsMaster,
 } from './localDb';
 import { candidateService } from '../api/candidateService';
+import { assessmentService } from '../api/assessmentService';
+import { employerService } from '../api/employerService';
+import { jobService } from '../api/jobService';
+import { userService } from '../api/userService';
 import type {
   User,
   Candidate,
@@ -41,38 +45,50 @@ import type {
 // =====================================================
 
 export function useUsers() {
-  const [data, setData] = useState<User[]>([]);
+  const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Simulate async fetch
-    const fetchData = async () => {
+  const fetchUsers = async () => {
+    try {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getUsers());
+      const users = await userService.getUsers();
+      setData(users);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
   }, []);
 
-  return { users: data, loading };
+  return { users: data, loading, refresh: fetchUsers };
 }
 
 export function useUser(id: string | undefined) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) {
       setLoading(false);
+      setUser(null);
       return;
     }
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setUser(LocalDatabase.getUserById(id) || null);
-      setLoading(false);
+      try {
+        const data = await userService.getUserById(id);
+        setUser(data);
+      } catch (error) {
+        console.error(`Failed to fetch user ${id}:`, error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [id]);
@@ -118,7 +134,7 @@ export function useCandidates() {
         setData(result);
       } catch (error) {
         console.error('Failed to fetch candidates:', error);
-        setData([]); // No fallback to mock data
+        setData([]); 
       } finally {
         setLoading(false);
       }
@@ -218,17 +234,24 @@ export function useEmployers() {
   const [data, setData] = useState<Employer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getEmployers());
+  const fetchEmployers = async () => {
+    setLoading(true);
+    try {
+      const result = await employerService.getEmployers();
+      setData(result);
+    } catch (error) {
+      console.error('Failed to fetch employers:', error);
+      setData([]);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployers();
   }, []);
 
-  return { employers: data, loading };
+  return { employers: data, loading, refresh: fetchEmployers };
 }
 
 export function useEmployer(id: string | undefined) {
@@ -243,9 +266,15 @@ export function useEmployer(id: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setEmployer(LocalDatabase.getEmployerById(id) || null);
-      setLoading(false);
+      try {
+        const result = await employerService.getEmployerById(id);
+        setEmployer(result);
+      } catch (error) {
+        console.error(`Failed to fetch employer ${id}:`, error);
+        setEmployer(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [id]);
@@ -288,38 +317,44 @@ export function useJobs(filters?: {
   const [data, setData] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      let result = LocalDatabase.getJobs();
+  const fetchJobs = async () => {
+    setLoading(true);
+    try {
+      const result = await jobService.getJobs();
+      let filtered = result;
       
       if (filters) {
         if (filters.status) {
-          result = result.filter(j => j.status === filters.status);
+          filtered = filtered.filter(j => j.status === filters.status);
         }
         if (filters.category) {
-          result = result.filter(j => j.category === filters.category);
+          filtered = filtered.filter(j => j.category === filters.category);
         }
         if (filters.location) {
-          result = result.filter(j => 
+          filtered = filtered.filter(j => 
             (j.location_city?.toLowerCase().includes(filters.location!.toLowerCase()) ?? false) ||
             (j.location_state?.toLowerCase().includes(filters.location!.toLowerCase()) ?? false)
           );
         }
         if (filters.isRemote !== undefined) {
-          result = result.filter(j => j.is_remote === filters.isRemote);
+          filtered = filtered.filter(j => j.is_remote === filters.isRemote);
         }
       }
       
-      setData(result);
+      setData(filtered);
+    } catch (error) {
+      console.error('Failed to fetch jobs:', error);
+      setData([]);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
   }, [filters?.status, filters?.category, filters?.location, filters?.isRemote]);
 
-  return { jobs: data, loading };
+  return { jobs: data, loading, refresh: fetchJobs };
 }
 
 export function useJob(id: string | undefined) {
@@ -334,9 +369,15 @@ export function useJob(id: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setJob(LocalDatabase.getJobById(id) || null);
-      setLoading(false);
+      try {
+        const result = await jobService.getJobById(id);
+        setJob(result);
+      } catch (error) {
+        console.error(`Failed to fetch job ${id}:`, error);
+        setJob(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [id]);
@@ -486,9 +527,15 @@ export function useAssessments() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getAssessments());
-      setLoading(false);
+      try {
+        const result = await assessmentService.getAssessments();
+        setData(result);
+      } catch (error) {
+        console.error('Failed to fetch assessments:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
@@ -508,9 +555,15 @@ export function useAssessment(id: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setAssessment(LocalDatabase.getAssessmentById(id) || null);
-      setLoading(false);
+      try {
+        const result = await assessmentService.getAssessmentById(id);
+        setAssessment(result);
+      } catch (error) {
+        console.error(`Failed to fetch assessment ${id}:`, error);
+        setAssessment(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [id]);
