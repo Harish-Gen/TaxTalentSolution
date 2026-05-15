@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { LocalDatabase } from "../../database/localDb";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -12,154 +11,58 @@ import { Textarea } from "../ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../ui/dialog";
 import { 
   Search, 
-  Filter,
-  Edit,
-  Trash2,
   Building2,
   Eye,
   Mail,
   Phone,
   MapPin,
   Users,
-  Calendar,
-  DollarSign,
   CheckCircle,
   XCircle,
   Clock,
   Plus,
   Globe,
-  Briefcase
+  Briefcase,
+  Edit,
+  Trash2,
+  Loader2
 } from "lucide-react";
+import { useEmployers } from "../../database/hooks";
+import { employerService } from "../../api/employerService";
+import { toast } from "sonner";
+import type { Employer as DBEmployer } from "../../database/types";
 
-interface Employer {
-  id: number;
-  dbId?: string;
+// UI-friendly Employer interface
+interface EmployerUI {
+  id: string;
   companyName: string;
   contactPerson: string;
   email: string;
   phone: string;
   location: string;
+  location_city: string;
+  location_state: string;
   industry: string;
   size: string;
   website: string;
-  status: "cpa_firm" | "lead" | "contacted" | "proposal" | "negotiating" | "won" | "active" | "inactive" | "pending" | "declined";
+  status: string;
   activeJobs: number;
   totalHires: number;
   joinedDate: string;
   lastActive: string;
+  dbRecord: DBEmployer;
 }
 
-// Mock employers data
-const mockEmployers: Employer[] = [
-  {
-    id: 1,
-    dbId: "eeeeeeee-0001-0001-0001-000000000001",
-    companyName: "KPMG India",
-    contactPerson: "Rajesh Mehta",
-    email: "rajesh.mehta@kpmg.com",
-    phone: "+91 22 3090 2000",
-    location: "Mumbai, Maharashtra",
-    industry: "Accounting & Tax Services",
-    size: "1000+",
-    website: "www.kpmg.com/in",
-    status: "active",
-    activeJobs: 15,
-    totalHires: 45,
-    joinedDate: "2024-01-15",
-    lastActive: "2 hours ago"
-  },
-  {
-    id: 2,
-    dbId: "eeeeeeee-0001-0001-0001-000000000002",
-    companyName: "Deloitte India",
-    contactPerson: "Priya Sharma",
-    email: "priya.sharma@deloitte.com",
-    phone: "+91 80 6627 6000",
-    location: "Bangalore, Karnataka",
-    industry: "Professional Services",
-    size: "1000+",
-    website: "www.deloitte.com/in",
-    status: "active",
-    activeJobs: 22,
-    totalHires: 67,
-    joinedDate: "2024-02-20",
-    lastActive: "1 day ago"
-  },
-  {
-    id: 3,
-    companyName: "TaxWise Solutions",
-    contactPerson: "Amit Kumar",
-    email: "amit@taxwise.in",
-    phone: "+91 11 4567 8900",
-    location: "New Delhi, Delhi",
-    industry: "Tax Consulting",
-    size: "50-200",
-    website: "www.taxwise.in",
-    status: "active",
-    activeJobs: 8,
-    totalHires: 12,
-    joinedDate: "2024-05-10",
-    lastActive: "3 hours ago"
-  },
-  {
-    id: 4,
-    companyName: "IndoTax Advisors",
-    contactPerson: "Sneha Patel",
-    email: "sneha@indotax.co.in",
-    phone: "+91 79 2658 7410",
-    location: "Ahmedabad, Gujarat",
-    industry: "Tax Advisory",
-    size: "10-50",
-    website: "www.indotax.co.in",
-    status: "pending",
-    activeJobs: 3,
-    totalHires: 2,
-    joinedDate: "2024-12-15",
-    lastActive: "1 week ago"
-  },
-  {
-    id: 5,
-    companyName: "Grant Thornton India",
-    contactPerson: "Vikram Singh",
-    email: "vikram.singh@in.gt.com",
-    phone: "+91 124 462 8000",
-    location: "Gurgaon, Haryana",
-    industry: "Audit & Tax Services",
-    size: "500-1000",
-    website: "www.grantthornton.in",
-    status: "active",
-    activeJobs: 18,
-    totalHires: 38,
-    joinedDate: "2024-03-05",
-    lastActive: "5 hours ago"
-  },
-  {
-    id: 6,
-    companyName: "RSM India",
-    contactPerson: "Anita Desai",
-    email: "anita.desai@rsm.in",
-    phone: "+91 22 6108 5555",
-    location: "Mumbai, Maharashtra",
-    industry: "Accounting Services",
-    size: "200-500",
-    website: "www.rsm.global/india",
-    status: "inactive",
-    activeJobs: 0,
-    totalHires: 8,
-    joinedDate: "2024-04-18",
-    lastActive: "2 months ago"
-  }
-];
-
 export function EmployerManagement() {
-  const [employers, setEmployers] = useState<Employer[]>(mockEmployers);
+  const { employers: dbEmployers, loading } = useEmployers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null);
+  const [selectedEmployer, setSelectedEmployer] = useState<EmployerUI | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editEmployer, setEditEmployer] = useState<Employer | null>(null);
+  const [editEmployer, setEditEmployer] = useState<any | null>(null);
+  const [employerToDelete, setEmployerToDelete] = useState<string | null>(null);
 
   // New employer form state
   const [newEmployer, setNewEmployer] = useState({
@@ -167,96 +70,153 @@ export function EmployerManagement() {
     contactPerson: "",
     email: "",
     phone: "",
-    location: "",
+    location_city: "",
+    location_state: "",
     industry: "",
     size: "",
-    website: ""
+    website: "",
+    description: ""
   });
+
+  const employers: EmployerUI[] = useMemo(() => {
+    return dbEmployers
+      .filter(emp => (emp as any).isactive !== false)
+      .map(emp => ({
+        id: emp.id,
+        companyName: emp.company_name,
+        contactPerson: (emp as any).contact_person || "N/A",
+        email: (emp as any).email || "N/A",
+        phone: (emp as any).phone || "N/A",
+        location: emp.headquarters_city ? `${emp.headquarters_city}, ${emp.headquarters_state || ''}` : "N/A",
+        location_city: emp.headquarters_city || "",
+        location_state: emp.headquarters_state || "",
+        industry: emp.industry || "N/A",
+        size: emp.company_size || "N/A",
+        website: emp.website || "N/A",
+        status: emp.status,
+        activeJobs: 0, // Would come from jobs table
+        totalHires: emp.total_hires || 0,
+        joinedDate: emp.created_at,
+        lastActive: emp.last_active || "Unknown",
+        dbRecord: emp
+      }));
+  }, [dbEmployers]);
 
   const filteredEmployers = employers.filter(employer => {
     const matchesSearch = employer.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         employer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         employer.email.toLowerCase().includes(searchTerm.toLowerCase());
+                         employer.industry.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || employer.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
-  const handleAddEmployer = () => {
-    // Persist to shared database
-    const newDbEmployer = LocalDatabase.addEmployer({
-      companyName: newEmployer.companyName,
-      contactPerson: newEmployer.contactPerson,
-      email: newEmployer.email,
-      phone: newEmployer.phone,
-      location: newEmployer.location,
-      industry: newEmployer.industry,
-      size: newEmployer.size,
-      website: newEmployer.website,
-    });
-    const employer: Employer = {
-      id: employers.length + 1,
-      dbId: newDbEmployer.id,
-      ...newEmployer,
-      status: "pending",
-      activeJobs: 0,
-      totalHires: 0,
-      joinedDate: new Date().toISOString().split('T')[0],
-      lastActive: "Just now"
-    };
-    setEmployers([employer, ...employers]);
-    setIsAddDialogOpen(false);
-    setNewEmployer({
-      companyName: "",
-      contactPerson: "",
-      email: "",
-      phone: "",
-      location: "",
-      industry: "",
-      size: "",
-      website: ""
-    });
-  };
-
-  const handleSaveEdit = () => {
-    if (!editEmployer) return;
-    setEmployers(employers.map(emp => emp.id === editEmployer.id ? { ...editEmployer } : emp));
-    setIsEditDialogOpen(false);
-    setEditEmployer(null);
-  };
-
-  const handleDeleteEmployer = (id: number) => {
-    if (confirm("Are you sure you want to delete this employer?")) {
-      setEmployers(employers.filter(emp => emp.id !== id));
+  const handleAddEmployer = async () => {
+    try {
+      await employerService.upsertEmployer({
+        company_name: newEmployer.companyName,
+        contact_person: newEmployer.contactPerson,
+        email: newEmployer.email,
+        phone: newEmployer.phone,
+        industry: newEmployer.industry,
+        company_size: newEmployer.size,
+        website: newEmployer.website,
+        headquarters_city: newEmployer.location_city,
+        headquarters_state: newEmployer.location_state,
+        description: newEmployer.description,
+        status: "pending"
+      });
+      toast.success("Employer added successfully");
+      setIsAddDialogOpen(false);
+      setNewEmployer({
+        companyName: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        location_city: "",
+        location_state: "",
+        industry: "",
+        size: "",
+        website: "",
+        description: ""
+      });
+    } catch (error) {
+      console.error("Failed to add employer:", error);
+      toast.error("Failed to add employer");
     }
   };
 
-  const handleStatusChange = (id: number, newStatus: "cpa_firm" | "lead" | "contacted" | "proposal" | "negotiating" | "won" | "active" | "inactive" | "pending" | "declined") => {
-    setEmployers(employers.map(emp => 
-      emp.id === id ? { ...emp, status: newStatus } : emp
-    ));
+  const handleSaveEdit = async () => {
+    if (!editEmployer) return;
+    try {
+      await employerService.upsertEmployer({
+        id: editEmployer.id,
+        company_name: editEmployer.companyName,
+        contact_person: editEmployer.contactPerson,
+        email: editEmployer.email,
+        phone: editEmployer.phone,
+        headquarters_city: editEmployer.location_city,
+        headquarters_state: editEmployer.location_state,
+        industry: editEmployer.industry,
+        company_size: editEmployer.size,
+        website: editEmployer.website,
+        status: editEmployer.status as any
+      });
+      toast.success("Employer updated successfully");
+      setIsEditDialogOpen(false);
+      setEditEmployer(null);
+    } catch (error) {
+      console.error("Failed to update employer:", error);
+      toast.error("Failed to update employer");
+    }
   };
 
-  const getEmployerJobsFromDb = (dbId?: string) => {
-    if (!dbId) return [];
-    return LocalDatabase.getJobs().filter(j => j.employer_id === dbId);
+  const handleEditClick = async (employer: EmployerUI) => {
+    try {
+      const fresh = await employerService.getEmployerById(employer.id);
+      setEditEmployer({ 
+        ...employer,
+        companyName: fresh.company_name,
+        contactPerson: fresh.contact_person || "N/A",
+        email: fresh.email || "N/A",
+        phone: fresh.phone || "N/A",
+        location_city: fresh.headquarters_city || "",
+        location_state: fresh.headquarters_state || "",
+        industry: fresh.industry || "N/A",
+        size: fresh.company_size || "N/A",
+        website: fresh.website || "N/A",
+        status: fresh.status as any,
+        dbRecord: fresh
+      });
+      setIsEditDialogOpen(true);
+    } catch (error) {
+      console.error("Failed to fetch employer data:", error);
+      toast.error("Failed to load latest employer data");
+    }
+  };
+
+  const handleDeleteEmployer = async (id: string) => {
+    try {
+      await employerService.deleteEmployer(id);
+      toast.success("Employer deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete employer:", error);
+      toast.error("Failed to delete employer");
+    } finally {
+      setEmployerToDelete(null);
+    }
+  };
+
+  const handleStatusChange = async (id: string, newStatus: any) => {
+    try {
+      await employerService.upsertEmployer({ id, status: newStatus });
+      toast.success(`Status updated to ${newStatus}`);
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      toast.error("Failed to update status");
+    }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "cpa_firm":
-        return <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">CPA Firm</Badge>;
-      case "lead":
-        return <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">Lead</Badge>;
-      case "contacted":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Contacted</Badge>;
-      case "proposal":
-        return <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">Proposal</Badge>;
-      case "negotiating":
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Negotiating</Badge>;
-      case "won":
-        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Won</Badge>;
-      case "declined":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Declined</Badge>;
       case "active":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>;
       case "inactive":
@@ -264,23 +224,141 @@ export function EmployerManagement() {
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{status}</Badge>;
     }
   };
 
   const stats = {
     total: employers.length,
     active: employers.filter(e => e.status === "active").length,
-    negotiating: employers.filter(e => e.status === "negotiating").length,
-    declined: employers.filter(e => e.status === "declined").length
+    pending: employers.filter(e => e.status === "pending").length,
+    inactive: employers.filter(e => e.status === "inactive").length
   };
+
+  if (loading && employers.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Loading employers...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Employer Management</h1>
-        <p className="text-muted-foreground mt-1">Manage employer accounts and subscriptions</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Employer Management</h1>
+          <p className="text-muted-foreground mt-1">Manage employer accounts and subscriptions (Connected to API)</p>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Employer
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Employer</DialogTitle>
+              <DialogDescription>
+                Enter the employer details below to create a new account
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Company Name *</Label>
+                  <Input
+                    id="companyName"
+                    value={newEmployer.companyName}
+                    onChange={(e) => setNewEmployer({...newEmployer, companyName: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="industry">Industry *</Label>
+                  <Input
+                    id="industry"
+                    value={newEmployer.industry}
+                    onChange={(e) => setNewEmployer({...newEmployer, industry: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={newEmployer.location_city}
+                    onChange={(e) => setNewEmployer({...newEmployer, location_city: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={newEmployer.location_state}
+                    onChange={(e) => setNewEmployer({...newEmployer, location_state: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contactPerson">Contact Person *</Label>
+                  <Input
+                    id="contactPerson"
+                    value={newEmployer.contactPerson}
+                    onChange={(e) => setNewEmployer({...newEmployer, contactPerson: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newEmployer.email}
+                    onChange={(e) => setNewEmployer({...newEmployer, email: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone *</Label>
+                  <Input
+                    id="phone"
+                    value={newEmployer.phone}
+                    onChange={(e) => setNewEmployer({...newEmployer, phone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website</Label>
+                  <Input
+                    id="website"
+                    value={newEmployer.website}
+                    onChange={(e) => setNewEmployer({...newEmployer, website: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea 
+                  id="description"
+                  value={newEmployer.description}
+                  onChange={(e) => setNewEmployer({...newEmployer, description: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddEmployer}>Add Employer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}
@@ -313,10 +391,10 @@ export function EmployerManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Negotiating</p>
-                <p className="text-3xl font-bold mt-1 text-orange-600">{stats.negotiating}</p>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-3xl font-bold mt-1 text-yellow-600">{stats.pending}</p>
               </div>
-              <Clock className="w-8 h-8 text-orange-600 opacity-50" />
+              <Clock className="w-8 h-8 text-yellow-600 opacity-50" />
             </div>
           </CardContent>
         </Card>
@@ -325,10 +403,10 @@ export function EmployerManagement() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Declined</p>
-                <p className="text-3xl font-bold mt-1 text-red-600">{stats.declined}</p>
+                <p className="text-sm text-muted-foreground">Inactive</p>
+                <p className="text-3xl font-bold mt-1 text-gray-600">{stats.inactive}</p>
               </div>
-              <XCircle className="w-8 h-8 text-red-600 opacity-50" />
+              <XCircle className="w-8 h-8 text-gray-600 opacity-50" />
             </div>
           </CardContent>
         </Card>
@@ -337,134 +415,15 @@ export function EmployerManagement() {
       {/* Main Content */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>All Employers</CardTitle>
-              <CardDescription>View and manage employer accounts</CardDescription>
-            </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Employer
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Employer</DialogTitle>
-                  <DialogDescription>
-                    Enter the employer details below to create a new account
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName">Company Name *</Label>
-                      <Input
-                        id="companyName"
-                        value={newEmployer.companyName}
-                        onChange={(e) => setNewEmployer({...newEmployer, companyName: e.target.value})}
-                        placeholder="ACME Corporation"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contactPerson">Contact Person *</Label>
-                      <Input
-                        id="contactPerson"
-                        value={newEmployer.contactPerson}
-                        onChange={(e) => setNewEmployer({...newEmployer, contactPerson: e.target.value})}
-                        placeholder="John Doe"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={newEmployer.email}
-                        onChange={(e) => setNewEmployer({...newEmployer, email: e.target.value})}
-                        placeholder="contact@company.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone *</Label>
-                      <Input
-                        id="phone"
-                        value={newEmployer.phone}
-                        onChange={(e) => setNewEmployer({...newEmployer, phone: e.target.value})}
-                        placeholder="+91 98765 43210"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Location *</Label>
-                    <Input
-                      id="location"
-                      value={newEmployer.location}
-                      onChange={(e) => setNewEmployer({...newEmployer, location: e.target.value})}
-                      placeholder="Mumbai, Maharashtra"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="industry">Industry *</Label>
-                      <Input
-                        id="industry"
-                        value={newEmployer.industry}
-                        onChange={(e) => setNewEmployer({...newEmployer, industry: e.target.value})}
-                        placeholder="Tax Services"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="size">Company Size *</Label>
-                      <Select value={newEmployer.size} onValueChange={(value) => setNewEmployer({...newEmployer, size: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-10">1-10 employees</SelectItem>
-                          <SelectItem value="10-50">10-50 employees</SelectItem>
-                          <SelectItem value="50-200">50-200 employees</SelectItem>
-                          <SelectItem value="200-500">200-500 employees</SelectItem>
-                          <SelectItem value="500-1000">500-1000 employees</SelectItem>
-                          <SelectItem value="1000+">1000+ employees</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
-                    <Input
-                      id="website"
-                      value={newEmployer.website}
-                      onChange={(e) => setNewEmployer({...newEmployer, website: e.target.value})}
-                      placeholder="www.company.com"
-                    />
-                  </div>
-
-
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAddEmployer}>Add Employer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+          <CardTitle>All Employers</CardTitle>
+          <CardDescription>View and manage employer accounts from live database</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Search and Filters */}
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
-                placeholder="Search by company, contact, or email..."
+                placeholder="Search by company or industry..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -476,22 +435,13 @@ export function EmployerManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="cpa_firm">CPA Firm</SelectItem>
-                <SelectItem value="lead">Lead</SelectItem>
-                <SelectItem value="contacted">Contacted</SelectItem>
-                <SelectItem value="proposal">Proposal</SelectItem>
-                <SelectItem value="negotiating">Negotiating</SelectItem>
-                <SelectItem value="won">Won</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
               </SelectContent>
             </Select>
-
           </div>
 
-          {/* Employers Table */}
           <div className="space-y-3">
             {filteredEmployers.map((employer) => (
               <Card key={employer.id} className="hover:shadow-md transition-shadow">
@@ -508,28 +458,26 @@ export function EmployerManagement() {
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-muted-foreground mt-2">
                           <div className="flex items-center space-x-1">
-                            <Users className="w-4 h-4" />
-                            <span>{employer.contactPerson}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Mail className="w-4 h-4" />
-                            <span>{employer.email}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
                             <MapPin className="w-4 h-4" />
                             <span>{employer.location}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <Briefcase className="w-4 h-4" />
-                            <span>{getEmployerJobsFromDb(employer.dbId).length || employer.activeJobs} active jobs</span>
+                            <span>{employer.industry}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Globe className="w-4 h-4" />
+                            <span>{employer.website}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Users className="w-4 h-4" />
+                            <span>{employer.size} emp.</span>
                           </div>
                         </div>
                         <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
                           <span>Joined: {new Date(employer.joinedDate).toLocaleDateString()}</span>
                           <span>•</span>
-                          <span>Last active: {employer.lastActive}</span>
-                          <span>•</span>
-                          <span>{employer.totalHires} total hires</span>
+                          <span>Total Hires: {employer.totalHires}</span>
                         </div>
                       </div>
                     </div>
@@ -548,10 +496,7 @@ export function EmployerManagement() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setEditEmployer({ ...employer });
-                          setIsEditDialogOpen(true);
-                        }}
+                        onClick={() => handleEditClick(employer)}
                       >
                         <Edit className="w-4 h-4 mr-1" />
                         Edit
@@ -564,13 +509,6 @@ export function EmployerManagement() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="cpa_firm">CPA Firm</SelectItem>
-                          <SelectItem value="lead">Lead</SelectItem>
-                          <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="proposal">Proposal</SelectItem>
-                          <SelectItem value="negotiating">Negotiating</SelectItem>
-                          <SelectItem value="won">Won</SelectItem>
-                          <SelectItem value="declined">Declined</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
@@ -579,7 +517,7 @@ export function EmployerManagement() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDeleteEmployer(employer.id)}
+                        onClick={() => setEmployerToDelete(employer.id)}
                       >
                         <Trash2 className="w-4 h-4 text-red-600" />
                       </Button>
@@ -590,7 +528,7 @@ export function EmployerManagement() {
             ))}
           </div>
 
-          {filteredEmployers.length === 0 && (
+          {filteredEmployers.length === 0 && !loading && (
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No employers found</p>
@@ -601,75 +539,64 @@ export function EmployerManagement() {
 
       {/* Edit Employer Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Employer</DialogTitle>
-            <DialogDescription>Update the employer details below</DialogDescription>
           </DialogHeader>
           {editEmployer && (
             <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Company Name</Label>
+                <Input
+                  value={editEmployer.companyName}
+                  onChange={(e) => setEditEmployer({ ...editEmployer, companyName: e.target.value })}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-companyName">Company Name *</Label>
+                  <Label>City</Label>
                   <Input
-                    id="edit-companyName"
-                    value={editEmployer.companyName}
-                    onChange={(e) => setEditEmployer({ ...editEmployer, companyName: e.target.value })}
+                    value={editEmployer.location_city}
+                    onChange={(e) => setEditEmployer({ ...editEmployer, location_city: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-contactPerson">Contact Person *</Label>
+                  <Label>State</Label>
                   <Input
-                    id="edit-contactPerson"
+                    value={editEmployer.location_state}
+                    onChange={(e) => setEditEmployer({ ...editEmployer, location_state: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Contact Person</Label>
+                  <Input
                     value={editEmployer.contactPerson}
                     onChange={(e) => setEditEmployer({ ...editEmployer, contactPerson: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email *</Label>
+                  <Label>Email</Label>
                   <Input
-                    id="edit-email"
-                    type="email"
                     value={editEmployer.email}
                     onChange={(e) => setEditEmployer({ ...editEmployer, email: e.target.value })}
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Label>Phone</Label>
                   <Input
-                    id="edit-phone"
                     value={editEmployer.phone}
                     onChange={(e) => setEditEmployer({ ...editEmployer, phone: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-location">Location</Label>
-                <Input
-                  id="edit-location"
-                  value={editEmployer.location}
-                  onChange={(e) => setEditEmployer({ ...editEmployer, location: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-industry">Industry</Label>
-                  <Input
-                    id="edit-industry"
-                    value={editEmployer.industry}
-                    onChange={(e) => setEditEmployer({ ...editEmployer, industry: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-size">Company Size</Label>
+                  <Label>Size</Label>
                   <Select value={editEmployer.size} onValueChange={(value) => setEditEmployer({ ...editEmployer, size: value })}>
-                    <SelectTrigger id="edit-size">
-                      <SelectValue placeholder="Select size" />
+                    <SelectTrigger>
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1-10">1-10 employees</SelectItem>
@@ -682,35 +609,12 @@ export function EmployerManagement() {
                   </Select>
                 </div>
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="edit-website">Website</Label>
+                <Label>Website</Label>
                 <Input
-                  id="edit-website"
                   value={editEmployer.website}
                   onChange={(e) => setEditEmployer({ ...editEmployer, website: e.target.value })}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-status">Status</Label>
-                <Select value={editEmployer.status} onValueChange={(value: any) => setEditEmployer({ ...editEmployer, status: value })}>
-                  <SelectTrigger id="edit-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cpa_firm">CPA Firm</SelectItem>
-                    <SelectItem value="lead">Lead</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="proposal">Proposal</SelectItem>
-                    <SelectItem value="negotiating">Negotiating</SelectItem>
-                    <SelectItem value="won">Won</SelectItem>
-                    <SelectItem value="declined">Declined</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           )}
@@ -735,7 +639,7 @@ export function EmployerManagement() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{selectedEmployer.companyName}</h2>
-                  <div className="flex items-center space-x-2 mt-1">
+                  <div className="mt-1">
                     {getStatusBadge(selectedEmployer.status)}
                   </div>
                 </div>
@@ -743,104 +647,79 @@ export function EmployerManagement() {
 
               <Separator />
 
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-3">Contact Information</h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedEmployer.contactPerson}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedEmployer.email}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedEmployer.phone}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedEmployer.location}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Globe className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedEmployer.website}</span>
-                    </div>
+              <div className="grid grid-cols-2 gap-6 text-sm">
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-base">Company Details</h3>
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <span>{selectedEmployer.location}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Globe className="w-4 h-4 text-muted-foreground" />
+                    <a href={selectedEmployer.website.startsWith('http') ? selectedEmployer.website : `https://${selectedEmployer.website}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                      {selectedEmployer.website}
+                    </a>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Briefcase className="w-4 h-4 text-muted-foreground" />
+                    <span>{selectedEmployer.industry}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span>{selectedEmployer.size} employees</span>
                   </div>
                 </div>
-
-                <div>
-                  <h3 className="font-semibold mb-3">Company Information</h3>
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Industry:</span>
-                      <span className="ml-2">{selectedEmployer.industry}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Company Size:</span>
-                      <span className="ml-2">{selectedEmployer.size} employees</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Joined:</span>
-                      <span className="ml-2">{new Date(selectedEmployer.joinedDate).toLocaleDateString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Last Active:</span>
-                      <span className="ml-2">{selectedEmployer.lastActive}</span>
-                    </div>
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-base">Stats & Activity</h3>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Joined Date:</span>
+                    <span>{new Date(selectedEmployer.joinedDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Hires:</span>
+                    <span>{selectedEmployer.totalHires}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Active:</span>
+                    <span>{new Date(selectedEmployer.lastActive).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
 
-              <Separator />
-
-              <div>
-                <h3 className="font-semibold mb-3">Activity & Stats</h3>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-blue-600">
-                          {getEmployerJobsFromDb(selectedEmployer.dbId).length || selectedEmployer.activeJobs}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">Active Jobs</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-green-600">{selectedEmployer.totalHires}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Total Hires</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                {getEmployerJobsFromDb(selectedEmployer.dbId).length > 0 && (
+              {selectedEmployer.dbRecord.description && (
+                <>
+                  <Separator />
                   <div>
-                    <h4 className="text-sm font-semibold mb-2">Job Listings</h4>
-                    <div className="space-y-2">
-                      {getEmployerJobsFromDb(selectedEmployer.dbId).map(job => (
-                        <div key={job.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                          <div>
-                            <p className="font-medium">{job.title}</p>
-                            <p className="text-xs text-muted-foreground">{job.category} · {job.location_city}, {job.location_state}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={job.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-                              {job.status}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">{job.applicant_count} applicants</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <h3 className="font-semibold mb-2">Description</h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedEmployer.dbRecord.description}</p>
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!employerToDelete} onOpenChange={(open) => !open && setEmployerToDelete(null)}>
+        <DialogContent className="max-w-md sm:max-w-md">
+          <DialogHeader className="sm:text-center flex flex-col items-center pt-2">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <DialogTitle className="text-xl">Confirm Deletion</DialogTitle>
+            <DialogDescription className="text-center pt-2 text-base">
+              Are you sure you want to delete this employer? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center mt-6 flex-row gap-3 justify-center w-full">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setEmployerToDelete(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" className="w-full sm:w-auto" onClick={() => employerToDelete && handleDeleteEmployer(employerToDelete)}>
+              Delete Employer
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

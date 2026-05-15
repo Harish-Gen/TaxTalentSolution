@@ -302,23 +302,44 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
     console.log("Assign assessment to candidate:", candidateId);
   };
 
-  const openEdit = (candidate: Candidate) => {
-    const dbRecord = dbCandidates.find(c => c.id === candidate.id);
-    setEditingCandidate(candidate);
-    const candidateData = candidate as any;
-    setEditForm({
-      firstname: candidateData.firstname || candidate.name.split(' ')[0] || '',
-      lastname: candidateData.lastname || candidate.name.split(' ').slice(1).join(' ') || '',
-      email: candidate.email,
-      phone: candidate.phone,
-      location_city: dbRecord?.location_city || '',
-      location_state: dbRecord?.location_state || '',
-      experience_years: candidate.experience,
-      headline: dbRecord?.headline || '',
-      availability: dbRecord?.availability || 'immediate',
-      work_mode: dbRecord?.work_mode || 'remote',
-      hourly_rate: dbRecord?.hourly_rate || 0,
-    });
+  const openEdit = async (candidate: Candidate) => {
+    try {
+      const fresh = await candidateService.getCandidateById(candidate.id);
+      setEditingCandidate(candidate);
+      setEditForm({
+        firstname: fresh.name?.split(' ')[0] || candidate.name.split(' ')[0] || '',
+        lastname: fresh.name?.split(' ').slice(1).join(' ') || candidate.name.split(' ').slice(1).join(' ') || '',
+        email: fresh.email || candidate.email,
+        phone: fresh.phone || candidate.phone,
+        location_city: fresh.location_city || '',
+        location_state: fresh.location_state || '',
+        experience_years: fresh.experience_years || candidate.experience,
+        headline: fresh.headline || '',
+        availability: fresh.availability || 'immediate',
+        work_mode: fresh.work_mode || 'remote',
+        hourly_rate: fresh.hourly_rate || 0,
+      });
+    } catch (error) {
+      console.error("Failed to fetch candidate data:", error);
+      toast.error("Failed to load latest candidate data. Using local data.");
+      
+      const dbRecord = dbCandidates.find(c => c.id === candidate.id);
+      setEditingCandidate(candidate);
+      const candidateData = candidate as any;
+      setEditForm({
+        firstname: candidateData.firstname || candidate.name.split(' ')[0] || '',
+        lastname: candidateData.lastname || candidate.name.split(' ').slice(1).join(' ') || '',
+        email: candidate.email,
+        phone: candidate.phone,
+        location_city: dbRecord?.location_city || '',
+        location_state: dbRecord?.location_state || '',
+        experience_years: candidate.experience,
+        headline: dbRecord?.headline || '',
+        availability: dbRecord?.availability || 'immediate',
+        work_mode: dbRecord?.work_mode || 'remote',
+        hourly_rate: dbRecord?.hourly_rate || 0,
+      });
+    }
   };
 
   const handleEditSave = async () => {

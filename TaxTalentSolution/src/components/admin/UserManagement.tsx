@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { LocalDatabase } from "../../database/localDb";
+import { useState, useMemo } from "react";
+import { useUsers, useEmployers, useUser } from "../../database/hooks";
+import { userService } from "../../api/userService";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -27,119 +29,45 @@ import {
   Users
 } from "lucide-react";
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  role: "admin" | "manager" | "viewer";
-  status: "active" | "inactive" | "pending";
-  assignedEmployers: string[];
-  permissions: string[];
-  joinedDate: string;
-  lastLogin: string;
-}
-
-// Mock users data
-const mockUsers: User[] = [
-  {
-    id: 1,
-    name: "Rajesh Kumar",
-    email: "rajesh.kumar@admin.com",
-    phone: "+91 98765 43210",
-    role: "admin",
-    status: "active",
-    assignedEmployers: ["All Employers"],
-    permissions: ["Full Access", "User Management", "Employer Management", "System Settings"],
-    joinedDate: "2024-01-10",
-    lastLogin: "2 hours ago"
-  },
-  {
-    id: 2,
-    name: "Priya Mehta",
-    email: "priya.mehta@admin.com",
-    phone: "+91 98765 43211",
-    role: "manager",
-    status: "active",
-    assignedEmployers: ["KPMG India", "Deloitte India", "Grant Thornton India"],
-    permissions: ["Employer Management", "View Reports", "Edit Employers"],
-    joinedDate: "2024-02-15",
-    lastLogin: "1 day ago"
-  },
-  {
-    id: 3,
-    name: "Amit Sharma",
-    email: "amit.sharma@admin.com",
-    phone: "+91 98765 43212",
-    role: "manager",
-    status: "active",
-    assignedEmployers: ["TaxWise Solutions", "IndoTax Advisors"],
-    permissions: ["Employer Management", "View Reports"],
-    joinedDate: "2024-03-20",
-    lastLogin: "3 hours ago"
-  },
-  {
-    id: 4,
-    name: "Sneha Patel",
-    email: "sneha.patel@admin.com",
-    phone: "+91 98765 43213",
-    role: "viewer",
-    status: "active",
-    assignedEmployers: ["KPMG India"],
-    permissions: ["View Only"],
-    joinedDate: "2024-05-12",
-    lastLogin: "1 week ago"
-  },
-  {
-    id: 5,
-    name: "Vikram Singh",
-    email: "vikram.singh@admin.com",
-    phone: "+91 98765 43214",
-    role: "manager",
-    status: "pending",
-    assignedEmployers: ["RSM India"],
-    permissions: ["Employer Management", "View Reports"],
-    joinedDate: "2024-12-20",
-    lastLogin: "Never"
-  },
-  {
-    id: 6,
-    name: "Anita Desai",
-    email: "anita.desai@admin.com",
-    phone: "+91 98765 43215",
-    role: "viewer",
-    status: "inactive",
-    assignedEmployers: ["Grant Thornton India"],
-    permissions: ["View Only"],
-    joinedDate: "2024-04-08",
-    lastLogin: "2 months ago"
-  }
-];
-
-const availableEmployers = [
-  "KPMG India",
-  "Deloitte India",
-  "Grant Thornton India",
-  "TaxWise Solutions",
-  "IndoTax Advisors",
-  "RSM India"
-];
-
 export function UserManagement() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { users: dbUsers, loading, refresh } = useUsers();
+  const { employers } = useEmployers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const { user: fetchedUser, loading: viewLoading } = useUser(selectedUserId || undefined);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editUser, setEditUser] = useState<any | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+
+  const viewUser = useMemo(() => {
+    if (!fetchedUser) return null;
+    const employerNames = fetchedUser.assignedEmployers?.map((empId: string) => {
+      const emp = employers.find(e => e.id === empId);
+      return emp ? emp.company_name : empId;
+    }) || [];
+    return { ...fetchedUser, employerNames };
+  }, [fetchedUser, employers]);
+
+  const users = useMemo(() => {
+    return dbUsers.map(user => {
+      const employerNames = user.assignedEmployers?.map((empId: string) => {
+        const emp = employers.find(e => e.id === empId);
+        return emp ? emp.company_name : empId;
+      }) || [];
+      return { ...user, employerNames };
+    });
+  }, [dbUsers, employers]);
 
   // New user form state
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
     phone: "",
-    role: "viewer" as const,
+    role: "viewer" as any,
     assignedEmployers: [] as string[]
   });
 
@@ -151,44 +79,61 @@ export function UserManagement() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleAddUser = () => {
-    // Persist to shared database
-    LocalDatabase.addAdminUser({
-      name: newUser.name,
-      email: newUser.email,
-      phone: newUser.phone,
-      role: newUser.role,
-    });
-    const permissions = getPermissionsByRole(newUser.role);
-    const user: User = {
-      id: users.length + 1,
-      ...newUser,
-      status: "pending",
-      permissions,
-      joinedDate: new Date().toISOString().split('T')[0],
-      lastLogin: "Never"
-    };
-    setUsers([user, ...users]);
-    setIsAddDialogOpen(false);
-    setNewUser({
-      name: "",
-      email: "",
-      phone: "",
-      role: "viewer",
-      assignedEmployers: []
-    });
-  };
-
-  const handleDeleteUser = (id: number) => {
-    if (confirm("Are you sure you want to delete this user?")) {
-      setUsers(users.filter(user => user.id !== id));
+  const handleAddUser = async () => {
+    try {
+      await userService.upsertUser({
+        ...newUser,
+        status: "active"
+      });
+      toast.success("User created successfully");
+      setIsAddDialogOpen(false);
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        role: "viewer",
+        assignedEmployers: []
+      });
+      refresh();
+    } catch (error) {
+      console.error("Failed to add user:", error);
+      toast.error("Failed to create user");
     }
   };
 
-  const handleStatusChange = (id: number, newStatus: "active" | "inactive" | "pending") => {
-    setUsers(users.map(user => 
-      user.id === id ? { ...user, status: newStatus } : user
-    ));
+  const handleSaveEdit = async () => {
+    if (!editUser) return;
+    try {
+      await userService.upsertUser(editUser);
+      toast.success("User updated successfully");
+      setIsEditDialogOpen(false);
+      refresh();
+    } catch (error) {
+      console.error("Failed to update user:", error);
+      toast.error("Failed to update user");
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await userService.deleteUser(id);
+      toast.success("User deleted");
+      refresh();
+    } catch (error) {
+      toast.error("Failed to delete user");
+    } finally {
+      setUserToDelete(null);
+    }
+  };
+
+  const handleStatusChange = async (id: string, newStatus: "active" | "inactive" | "pending") => {
+    try {
+      await userService.upsertUser({ id, status: newStatus });
+      toast.success(`User status updated to ${newStatus}`);
+      refresh();
+    } catch (error) {
+      toast.error("Failed to update status");
+    }
   };
 
   const getPermissionsByRole = (role: string): string[] => {
@@ -368,29 +313,29 @@ export function UserManagement() {
                   <div className="space-y-2">
                     <Label>Assigned Employers *</Label>
                     <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
-                      {availableEmployers.map((employer) => (
-                        <div key={employer} className="flex items-center space-x-2">
+                      {employers.map((employer) => (
+                        <div key={employer.id} className="flex items-center space-x-2">
                           <input
                             type="checkbox"
-                            id={employer}
-                            checked={newUser.assignedEmployers.includes(employer)}
+                            id={employer.id}
+                            checked={newUser.assignedEmployers.includes(employer.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setNewUser({
                                   ...newUser,
-                                  assignedEmployers: [...newUser.assignedEmployers, employer]
+                                  assignedEmployers: [...newUser.assignedEmployers, employer.id]
                                 });
                               } else {
                                 setNewUser({
                                   ...newUser,
-                                  assignedEmployers: newUser.assignedEmployers.filter(e => e !== employer)
+                                  assignedEmployers: newUser.assignedEmployers.filter(id => id !== employer.id)
                                 });
                               }
                             }}
                             className="w-4 h-4"
                           />
-                          <label htmlFor={employer} className="text-sm cursor-pointer">
-                            {employer}
+                          <label htmlFor={employer.id} className="text-sm cursor-pointer">
+                            {employer.company_name}
                           </label>
                         </div>
                       ))}
@@ -458,7 +403,7 @@ export function UserManagement() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4 flex-1">
                       <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        {user.name ? user.name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase() : 'U'}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
@@ -477,7 +422,7 @@ export function UserManagement() {
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 mt-2 text-xs text-muted-foreground">
-                          <span>Employers: {user.assignedEmployers.length}</span>
+                          <span>Employers: {user.assignedEmployers?.length || 0}</span>
                           <span>•</span>
                           <span>Joined: {new Date(user.joinedDate).toLocaleDateString()}</span>
                           <span>•</span>
@@ -490,7 +435,7 @@ export function UserManagement() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setSelectedUser(user);
+                          setSelectedUserId(user.id);
                           setIsViewDialogOpen(true);
                         }}
                       >
@@ -513,7 +458,7 @@ export function UserManagement() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => setUserToDelete(user.id)}
                       >
                         <Trash2 className="w-4 h-4 text-red-600" />
                       </Button>
@@ -533,26 +478,31 @@ export function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* View User Sheet */}
-      <Sheet open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle>User Details</SheetTitle>
-            <SheetDescription>
+      {/* View User Modal */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+          <DialogHeader className="mb-4">
+            <DialogTitle>User Details</DialogTitle>
+            <DialogDescription>
               Full profile, permissions and assigned employers for this user.
-            </SheetDescription>
-          </SheetHeader>
-          {selectedUser ? (
-            <div className="space-y-6 px-4 pb-8">
+            </DialogDescription>
+          </DialogHeader>
+          {viewLoading ? (
+            <div className="flex justify-center py-12 text-muted-foreground">
+              <Clock className="w-8 h-8 animate-spin" />
+              <span className="ml-2">Loading user details...</span>
+            </div>
+          ) : viewUser ? (
+            <div className="space-y-6 pb-2">
               <div className="flex items-start space-x-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                  {selectedUser.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  {viewUser.name ? viewUser.name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase() : 'U'}
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{selectedUser.name}</h2>
+                  <h2 className="text-2xl font-bold">{viewUser.name}</h2>
                   <div className="flex items-center space-x-2 mt-1">
-                    {getStatusBadge(selectedUser.status)}
-                    {getRoleBadge(selectedUser.role)}
+                    {getStatusBadge(viewUser.status)}
+                    {getRoleBadge(viewUser.role)}
                   </div>
                 </div>
               </div>
@@ -561,22 +511,22 @@ export function UserManagement() {
 
               <div>
                 <h3 className="font-semibold mb-3">Contact Information</h3>
-                <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex items-center space-x-2">
                     <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedUser.email}</span>
+                    <span>{viewUser.email}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{selectedUser.phone}</span>
+                    <span>{viewUser.phone}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>Joined: {new Date(selectedUser.joinedDate).toLocaleDateString()}</span>
+                    <span>Joined: {new Date(viewUser.joinedDate).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span>Last login: {selectedUser.lastLogin}</span>
+                    <span>Last login: {viewUser.lastLogin}</span>
                   </div>
                 </div>
               </div>
@@ -586,44 +536,64 @@ export function UserManagement() {
               <div>
                 <h3 className="font-semibold mb-3">Permissions</h3>
                 <div className="space-y-2">
-                  {selectedUser.permissions.map((permission) => (
+                  {(viewUser.permissions || []).map((permission: string) => (
                     <div key={permission} className="flex items-center space-x-2 text-sm">
                       <CheckCircle className="w-4 h-4 text-green-600" />
                       <span>{permission}</span>
                     </div>
                   ))}
+                  {(!viewUser.permissions || viewUser.permissions.length === 0) && (
+                    <p className="text-sm text-muted-foreground">No permissions assigned.</p>
+                  )}
                 </div>
               </div>
 
               <Separator />
 
               <div>
-                <h3 className="font-semibold mb-3">Assigned Employers ({selectedUser.assignedEmployers.length})</h3>
+                <h3 className="font-semibold mb-3">Assigned Employers ({viewUser.assignedEmployers?.length || 0})</h3>
                 <div className="flex flex-wrap gap-2">
-                  {selectedUser.assignedEmployers.map((employer) => (
-                    <Badge key={employer} variant="outline" className="px-3 py-1">
-                      {employer}
+                  {(viewUser.employerNames || []).map((employerName: string, index: number) => (
+                    <Badge key={index} variant="outline" className="px-3 py-1">
+                      {employerName}
                     </Badge>
                   ))}
+                  {(!viewUser.employerNames || viewUser.employerNames.length === 0) && (
+                    <p className="text-sm text-muted-foreground">No employers assigned.</p>
+                  )}
                 </div>
               </div>
 
-              <div className="flex space-x-2 pt-2">
-                <Button variant="outline" className="flex-1">
-                  <Key className="w-4 h-4 mr-2" />
-                  Reset Password
-                </Button>
-                <Button variant="outline" className="flex-1">
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit User
-                </Button>
-              </div>
+
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground px-4">No user selected.</p>
+            <p className="text-sm text-muted-foreground px-4 py-8 text-center">No user selected.</p>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <DialogContent className="max-w-md sm:max-w-md">
+          <DialogHeader className="sm:text-center flex flex-col items-center pt-2">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <DialogTitle className="text-xl">Confirm Deletion</DialogTitle>
+            <DialogDescription className="text-center pt-2 text-base">
+              Are you sure you want to delete this user? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center mt-6 flex-row gap-3 justify-center w-full">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setUserToDelete(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" className="w-full sm:w-auto" onClick={() => userToDelete && handleDeleteUser(userToDelete)}>
+              Delete User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
