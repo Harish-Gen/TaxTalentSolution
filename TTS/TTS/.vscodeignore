@@ -1,0 +1,8 @@
+env1/
+env/
+__pycache__/
+.vs/
+.vscode/
+*.pyc
+*.pyo
+.Python

@@ -1,6 +1,7 @@
 import { Button } from "./ui/button";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Search, TrendingUp, Shield } from "lucide-react";
+import { assetUrl } from "../utils/appPaths";
 
 interface HeroProps {
   onGetStartedClick: () => void;
@@ -15,7 +16,7 @@ export function Hero({ onGetStartedClick, onEmployersClick }: HeroProps) {
           {/* Content */}
           <div className="max-w-xl">
             <div className="flex items-center gap-6 mb-8">
-              <img src="/images/logo.png" alt="Tax Talent Solution" className="h-52 w-52 rounded-full shadow-xl" />
+              <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-52 w-52 rounded-full shadow-xl" />
               <h2 className="text-4xl font-bold text-primary">Tax Talent Solution</h2>
             </div>
             <div className="mb-6">
@@ -50,7 +51,7 @@ export function Hero({ onGetStartedClick, onEmployersClick }: HeroProps) {
           <div className="relative max-w-xl mx-auto">
             <div className="relative rounded-2xl overflow-hidden shadow-2xl">
               <ImageWithFallback
-                src="/images/For Candidate.png"
+                src={assetUrl("images/For Candidate.png")}
                 alt="Build the Career You've Been Working Toward"
                 className="w-full h-[325px] object-cover"
               />

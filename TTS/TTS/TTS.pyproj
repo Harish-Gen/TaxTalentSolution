@@ -11,6 +11,10 @@
     <OutputPath>.</OutputPath>
     <Name>TTS</Name>
     <RootNamespace>TTS</RootNamespace>
+    <InterpreterId>MSBuild|env1|$(MSBuildProjectFullPath)</InterpreterId>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+    <Environment>TTS_RELOAD=false;ENVIRONMENT=Development</Environment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -34,6 +38,11 @@
     <Compile Include="controllers\usercompetency_controller.py" />
     <Compile Include="controllers\userassessment_controller.py" />
     <Compile Include="controllers\userassessmentanswer_controller.py" />
+    <Compile Include="controllers\account_controller.py" />
+    <Compile Include="run_api_debug.py" />
+    <Compile Include="utils\__init__.py" />
+    <Compile Include="utils\entra_auth.py" />
+    <Compile Include="utils\entra_claims.py" />
     <Compile Include="interfaces\__init__.py" />
     <Compile Include="interfaces\icandidate_repository.py" />
     <Compile Include="interfaces\iassessment_repository.py" />
@@ -71,10 +80,35 @@
     <Folder Include="interfaces\" />
     <Folder Include="models\" />
     <Folder Include="repository\" />
+    <Folder Include="utils\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="appsettings.json" />
+    <Content Include="appsettings.Development.json" />
+    <Content Include="appsettings.Production.json" />
     <Content Include="requirements.txt" />
+    <Content Include="startup.sh" />
+    <Content Include="deploy-to-azure.ps1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="env1\">
+      <Id>env1</Id>
+      <Version>3.10</Version>
+      <Description>env1 (Python 3.10 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
+    <Interpreter Include="env\">
+      <Id>env</Id>
+      <Version>3.14</Version>
+      <Description>env (Python 3.14.3)</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

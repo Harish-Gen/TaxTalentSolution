@@ -1,6 +1,7 @@
 ﻿import { useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Award, Download, Share2, ArrowLeft, CheckCircle } from "lucide-react";
+import { assetUrl } from "../../utils/appPaths";
 
 interface Certificate1040Props {
   onBack: () => void;
@@ -251,7 +252,7 @@ export function Certificate1040({ onBack }: Certificate1040Props) {
               className="rounded-full shadow-lg border-4 border-blue-700 overflow-hidden flex items-center justify-center bg-black"
               style={{ width: 162, height: 162 }}
             >
-              <img src="/images/logo.png" alt="TaxTalent Logo" style={{ width: 154, height: 154, objectFit: "cover", borderRadius: "50%" }} />
+              <img src={assetUrl("images/logo.png")} alt="TaxTalent Logo" style={{ width: 154, height: 154, objectFit: "cover", borderRadius: "50%" }} />
             </div>
             <p className="text-blue-800 text-xs font-semibold tracking-widest uppercase mt-2">TaxTalent</p>
           </div>

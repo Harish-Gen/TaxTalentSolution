@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { assetUrl } from "../utils/appPaths";
 import { Button } from "./ui/button";
 import { AdminDashboard } from "./admin/AdminDashboard";
 import { CandidateManagement } from "./admin/CandidateManagement";
@@ -81,7 +82,7 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
         {/* Sidebar Header */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center space-x-2">
-            <img src="/images/logo.png" alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
+            <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
             <div>
               <h1 className="text-lg font-semibold text-sidebar-primary">Tax Talent Solution</h1>
               <span className="text-xs text-sidebar-foreground/70">Admin Portal</span>

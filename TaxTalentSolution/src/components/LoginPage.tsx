@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -23,10 +23,12 @@ import {
   Phone,
 } from "lucide-react";
 import { supabase } from "../utils/supabase/client";
+import { appRootUrl, assetUrl } from "../utils/appPaths";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { validateLocalLogin, buildMockUser, localCredentials } from "../database/localAuth";
 import { registerUser, authenticateStoredUser, buildUserFromStored } from "../database/userStore";
-import { signInWithB2C, signUpWithB2C } from "../utils/b2c/authService";
+import { redirectToEntraSignIn } from "../utils/entra/entraAuthService";
+import { fetchEntraConfig } from "../api/entraConfigService";
 import { userService } from "../api/userService";
 
 interface LoginPageProps {
@@ -72,6 +74,13 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
   const [showDemoPanel, setShowDemoPanel] = useState(false);
+  const [entraEnabled, setEntraEnabled] = useState(false);
+
+  useEffect(() => {
+    fetchEntraConfig()
+      .then((config) => setEntraEnabled(config.Enabled))
+      .catch(() => setEntraEnabled(false));
+  }, []);
 
 
 
@@ -84,16 +93,21 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
     }, 5000);
   };
 
-  const handleB2CAuth = async () => {
+  const handleEntraAuth = async () => {
+    if (!entraEnabled) return;
     setLoading(true);
     try {
-      if (isLogin) {
-        await signInWithB2C();
-      } else {
-        await signUpWithB2C({ loginHint: email || undefined });
+      const config = await fetchEntraConfig();
+      if (!config.Enabled) {
+        showMessage(
+          "Microsoft sign-in is not enabled in API appsettings (Entra:Enabled).",
+          "error"
+        );
+        setLoading(false);
+        return;
       }
-      // Page will redirect to B2C; no further action needed here
-    } catch (err) {
+      await redirectToEntraSignIn();
+    } catch {
       showMessage("Microsoft sign-in failed. Please try again.", "error");
       setLoading(false);
     }
@@ -105,7 +119,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}`
+          redirectTo: appRootUrl()
         }
       });
       
@@ -120,6 +134,11 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isLogin && entraEnabled) {
+      await handleEntraAuth();
+      return;
+    }
     
     // For login, only email is required now. For signup, all fields are required.
     if (!email || (!isLogin && (!password || !name || !phone))) {
@@ -274,7 +293,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                   Back
                 </Button>
                 <div className="flex items-center gap-2">
-                  <img src="/images/logo.png" alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
+                  <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
                   <div className="text-right">
                     <h1 className="text-lg font-bold text-primary">Tax Talent Solution</h1>
                     <p className="text-xs text-muted-foreground">US Tax Professionals</p>
@@ -374,7 +393,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
 
               {/* Social Login Options */}
               <div className="space-y-3">
-                {/* Microsoft / Azure AD B2C - Primary */}
+                {entraEnabled && (
                 <div className="relative">
                   <Badge className="absolute -top-2 -right-2 bg-blue-600 text-white z-10">
                     <Star className="w-3 h-3 mr-1" />
@@ -383,7 +402,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                   <Button
                     variant="outline"
                     className="w-full h-12 border-[#0078D4] text-[#0078D4] hover:bg-[#0078D4] hover:text-white transition-colors"
-                    onClick={handleB2CAuth}
+                    onClick={handleEntraAuth}
                     disabled={loading}
                   >
                     <svg className="w-5 h-5 mr-3" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -395,6 +414,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                     {isLogin ? "Sign in with Microsoft" : "Sign up with Microsoft"}
                   </Button>
                 </div>
+                )}
 
                 {/* Google */}
                 <Button

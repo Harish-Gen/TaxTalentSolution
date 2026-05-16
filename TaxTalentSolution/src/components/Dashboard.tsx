@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { assetUrl } from "../utils/appPaths";
 import { loadProfile } from "../database/profileStore";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -195,7 +196,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         {/* Sidebar Header */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center space-x-2 mb-1">
-            <img src="/images/logo.png" alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
+            <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-8 w-8 rounded-full" />
             <h1 className="text-lg font-semibold text-sidebar-primary">Tax Talent Solution</h1>
           </div>
           <span className="text-xs text-sidebar-foreground/70 ml-10">{candidateName}</span>

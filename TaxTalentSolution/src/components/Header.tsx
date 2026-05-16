@@ -1,5 +1,6 @@
 import { Button } from "./ui/button";
 import { Menu, Search, User } from "lucide-react";
+import { assetUrl } from "../utils/appPaths";
 
 interface HeaderProps {
   onLoginClick: () => void;
@@ -14,7 +15,7 @@ export function Header({ onLoginClick, onAboutClick }: HeaderProps) {
           {/* Logo */}
           <div className="flex items-center">
             <div className="flex-shrink-0 flex items-center gap-3">
-              <img src="/images/logo.png" alt="Tax Talent Solution" className="h-10 w-10 rounded-full" />
+              <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-10 w-10 rounded-full" />
               <div>
                 <h1 className="text-xl font-bold text-primary">Tax Talent Solution</h1>
                 <p className="text-xs text-muted-foreground">US Tax Professionals</p>

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Search, TrendingUp, Shield, Users } from "lucide-react";
+import { assetUrl } from "../utils/appPaths";
 
 interface EmployerInfoProps {
   onGetStartedClick: () => void;
@@ -54,7 +55,7 @@ export function EmployerInfo({ onGetStartedClick, onCandidateClick }: EmployerIn
             <div className="relative max-w-xl mx-auto order-2 lg:order-1">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <ImageWithFallback
-                  src="/images/For Employer.png"
+                  src={assetUrl("images/For Employer.png")}
                   alt="Find the Right Talent. Faster. Smarter."
                   className="w-full h-[325px] object-cover"
                 />
@@ -73,7 +74,7 @@ export function EmployerInfo({ onGetStartedClick, onCandidateClick }: EmployerIn
             {/* Content - Right Side */}
             <div className="max-w-xl order-1 lg:order-2">
               <div className="flex items-center gap-6 mb-8">
-                <img src="/images/logo.png" alt="Tax Talent Solution" className="h-52 w-52 rounded-full shadow-xl" />
+                <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-52 w-52 rounded-full shadow-xl" />
                 <h2 className="text-4xl font-bold text-primary">Tax Talent Solution</h2>
               </div>
               <div className="mb-6">

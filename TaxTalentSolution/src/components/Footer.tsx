@@ -11,6 +11,7 @@ import {
   Shield,
   HelpCircle
 } from "lucide-react";
+import { assetUrl } from "../utils/appPaths";
 
 export function Footer({ onPrivacyPolicyClick, onTermsClick, onCookiePolicyClick, onAboutClick }: { onPrivacyPolicyClick?: () => void; onTermsClick?: () => void; onCookiePolicyClick?: () => void; onAboutClick?: () => void }) {
   return (
@@ -22,7 +23,7 @@ export function Footer({ onPrivacyPolicyClick, onTermsClick, onCookiePolicyClick
           <div className="lg:col-span-1">
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-3">
-                <img src="/images/logo.png" alt="Tax Talent Solution" className="h-12 w-12 rounded-full" />
+                <img src={assetUrl("images/logo.png")} alt="Tax Talent Solution" className="h-12 w-12 rounded-full" />
                 <h3 className="text-2xl">Tax Talent Solution</h3>
               </div>
               <p className="text-primary-foreground/80">

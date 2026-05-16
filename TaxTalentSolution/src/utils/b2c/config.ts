@@ -42,14 +42,16 @@ export const B2C_SCOPES = {
   api:    [`https://${B2C_TENANT_DOMAIN}/taxtalent-api/user.read`],
 };
 
+import { appRootUrl } from "../appPaths";
+
 // MSAL configuration object
 export const msalConfig = {
   auth: {
     clientId:             B2C_CLIENT_ID,
     authority:            B2C_AUTHORITIES.signUpSignIn.authority,
     knownAuthorities:     [`${B2C_TENANT_NAME}.b2clogin.com`],
-    redirectUri:          window.location.origin,
-    postLogoutRedirectUri: window.location.origin,
+    redirectUri:          appRootUrl(),
+    postLogoutRedirectUri: appRootUrl(),
   },
   cache: {
     cacheLocation:        "sessionStorage" as const, // sessionStorage – safer for SPAs

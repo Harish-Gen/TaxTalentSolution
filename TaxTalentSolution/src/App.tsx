@@ -22,12 +22,54 @@ import { TermsOfService } from "./components/TermsOfService";
 import { About } from "./components/About";
 import { initializeFromStorage, activateSubscription } from "./database/userStore";
 import type { CandidatePlan, BillingCycle } from "./database/types";
+import {
+  clearAuthSession,
+  getAuthToken,
+  getStoredEntraUser,
+  hasActiveEntraSession,
+  isTokenExpired,
+} from "./utils/entra/tokenUtils";
+import { startSignInFlow } from "./utils/entra/entraAuthService";
 
 type View = "landing" | "login" | "dashboard" | "employer-portal" | "admin-portal" | "employer-info" | "privacy-policy" | "terms-of-service" | "about";
 
+const VIEW_PARAM_MAP: Record<string, View> = {
+  dashboard: "dashboard",
+  "employer-portal": "employer-portal",
+  "admin-portal": "admin-portal",
+  login: "login",
+  landing: "landing",
+};
+
+function viewFromEntraRole(role?: string): View {
+  if (role === "admin") return "admin-portal";
+  if (role === "employer") return "employer-portal";
+  return "dashboard";
+}
+
+function initialViewFromUrl(): View | null {
+  const viewParam = new URLSearchParams(window.location.search).get("view");
+  return viewParam ? VIEW_PARAM_MAP[viewParam] ?? null : null;
+}
+
+function readInitialAuthState(): { user: any | null; view: View } {
+  const entraToken = getAuthToken();
+  const entraUser = getStoredEntraUser();
+  if (entraToken && entraUser && !isTokenExpired(entraToken)) {
+    const role =
+      (entraUser.user_metadata as { role?: string })?.role ?? "candidate";
+    return {
+      user: entraUser,
+      view: initialViewFromUrl() ?? viewFromEntraRole(role),
+    };
+  }
+  return { user: null, view: "landing" };
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>("landing");
-  const [user, setUser] = useState<any>(null);
+  const initialAuth = readInitialAuthState();
+  const [currentView, setCurrentView] = useState<View>(initialAuth.view);
+  const [user, setUser] = useState<any>(initialAuth.user);
   const [loading, setLoading] = useState(true);
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
   const [showPayment, setShowPayment] = useState(false);
@@ -40,24 +82,42 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Check for existing session
+    // Check for existing session (Entra or Supabase)
     const checkSession = async () => {
+      const entraToken = getAuthToken();
+      const entraUser = getStoredEntraUser();
+      if (entraToken && entraUser && !isTokenExpired(entraToken)) {
+        setUser(entraUser);
+        const role =
+          (entraUser.user_metadata as { role?: string })?.role ?? "candidate";
+        setCurrentView(initialViewFromUrl() ?? viewFromEntraRole(role));
+        setLoading(false);
+        return;
+      }
+      if (entraToken && isTokenExpired(entraToken)) {
+        clearAuthSession();
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        setCurrentView("dashboard");
+        setCurrentView(initialViewFromUrl() ?? "dashboard");
       }
       setLoading(false);
     };
 
     checkSession();
 
-    // Listen for auth changes
+    // Supabase listener — do not clear Entra session when Supabase has no session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
+        if (hasActiveEntraSession()) {
+          setLoading(false);
+          return;
+        }
         if (session?.user) {
           setUser(session.user);
-          setCurrentView("dashboard");
+          setCurrentView(initialViewFromUrl() ?? "dashboard");
         } else {
           setUser(null);
           setCurrentView("landing");
@@ -92,12 +152,14 @@ export default function App() {
     }
   };
 
-  const handleShowLogin = () => {
+  const handleShowLogin = async () => {
+    if ((await startSignInFlow()) === "entra") return;
     setCurrentView("login");
   };
 
-  const handlePricingGetStarted = (plan: PendingPlan) => {
+  const handlePricingGetStarted = async (plan: PendingPlan) => {
     setPendingPlan(plan);
+    if ((await startSignInFlow()) === "entra") return;
     setCurrentView("login");
   };
 
@@ -110,6 +172,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    clearAuthSession();
     await supabase.auth.signOut();
     setUser(null);
     setCurrentView("landing");

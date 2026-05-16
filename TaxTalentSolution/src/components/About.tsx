@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Button } from "./ui/button";
 import { ArrowLeft, CheckCircle, Star, Lightbulb, TrendingUp, BadgeCheck, Zap, Globe } from "lucide-react";
+import { assetUrl } from "../utils/appPaths";
 
 interface AboutProps {
   onBack: () => void;
@@ -134,7 +135,7 @@ export function About({ onBack }: AboutProps) {
           {/* ── Sarita (top) ── */}
           <div className="flex flex-row gap-6 items-start bg-white rounded-3xl shadow-lg border border-slate-100 p-10 mb-10">
             <div className="w-1/5 flex-shrink-0 flex justify-center">
-              <FounderPhoto initials="SR" gradient="bg-gradient-to-br from-purple-500 to-pink-400" src="/images/sarita.jpg" size="w-[88px] h-[88px]" />
+              <FounderPhoto initials="SR" gradient="bg-gradient-to-br from-purple-500 to-pink-400" src={assetUrl("images/sarita.jpg")} size="w-[88px] h-[88px]" />
             </div>
             <div className="w-4/5">
               <div className="flex items-center gap-3 mb-1">
@@ -171,7 +172,7 @@ export function About({ onBack }: AboutProps) {
           {/* ── Vijay (below) ── */}
           <div className="flex flex-row gap-6 items-start bg-white rounded-3xl shadow-lg border border-slate-100 p-10">
             <div className="w-1/5 flex-shrink-0 flex justify-center">
-              <FounderPhoto initials="VN" gradient="bg-gradient-to-br from-primary to-blue-400" src="/images/vijay.png" size="w-[106px] h-[106px]" />
+              <FounderPhoto initials="VN" gradient="bg-gradient-to-br from-primary to-blue-400" src={assetUrl("images/vijay.png")} size="w-[106px] h-[106px]" />
             </div>
             <div className="w-4/5">
               <div className="flex items-center gap-3 mb-1">
