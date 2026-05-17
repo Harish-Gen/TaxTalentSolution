@@ -6,6 +6,7 @@
 
 const STORE_KEY_PREFIX = 'tts_profile_';
 const IMAGE_KEY_PREFIX = 'tts_profile_img_';
+const RESUME_KEY_PREFIX = 'tts_profile_resume_';
 
 export interface StoredProfile {
   name: string;
@@ -44,6 +45,41 @@ function storeKey(userId: string) {
 
 function imageKey(userId: string) {
   return `${IMAGE_KEY_PREFIX}${userId}`;
+}
+
+function resumeKey(userId: string) {
+  return `${RESUME_KEY_PREFIX}${userId}`;
+}
+
+export interface StoredResume {
+  blobName: string;
+  displayName: string;
+  size: number;
+  savedAt?: string;
+}
+
+/** Blank profile seeded from signup / auth user fields only. */
+export function createEmptyProfileFromUser(user: {
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  user_metadata?: { name?: string; phone?: string };
+} | null | undefined): StoredProfile {
+  return {
+    name: user?.user_metadata?.name || user?.displayName || "",
+    title: "",
+    location: "",
+    summary: "",
+    email: user?.email ?? "",
+    phone: user?.user_metadata?.phone || user?.phone || "",
+    website: "",
+    availability: "Actively Looking",
+    preferredLocation: "",
+    experience: [],
+    education: [],
+    skills: [],
+    certifications: [],
+  };
 }
 
 /** Load a saved profile for a user. Returns null if none saved yet. */
@@ -85,11 +121,41 @@ export function saveProfileImage(userId: string, dataUrl: string): void {
   }
 }
 
+/** Load saved resume metadata for a user. */
+export function loadResume(userId: string): StoredResume | null {
+  try {
+    const raw = localStorage.getItem(resumeKey(userId));
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredResume;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist resume metadata (blob path in cloud storage). */
+export function saveResume(userId: string, resume: StoredResume): void {
+  try {
+    const data: StoredResume = { ...resume, savedAt: new Date().toISOString() };
+    localStorage.setItem(resumeKey(userId), JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearResume(userId: string): void {
+  try {
+    localStorage.removeItem(resumeKey(userId));
+  } catch {
+    // ignore
+  }
+}
+
 /** Clear all stored data for a user (e.g., on logout). */
 export function clearProfile(userId: string): void {
   try {
     localStorage.removeItem(storeKey(userId));
     localStorage.removeItem(imageKey(userId));
+    localStorage.removeItem(resumeKey(userId));
   } catch {
     // ignore
   }

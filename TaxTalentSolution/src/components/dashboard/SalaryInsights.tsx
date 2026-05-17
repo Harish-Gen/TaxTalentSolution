@@ -25,57 +25,17 @@ export function SalaryInsights() {
   const [selectedLocation, setSelectedLocation] = useState("mumbai");
   const [selectedExperience, setSelectedExperience] = useState("3-5");
 
-  // Sample data - in real app this would come from API
-  const salaryData = [
-    { role: "Tax Associate", min: 4, max: 7, median: 5.5, experience: "1-3 years" },
-    { role: "Senior Tax Associate", min: 8, max: 15, median: 11.5, experience: "3-5 years" },
-    { role: "Tax Manager", min: 15, max: 25, median: 20, experience: "5-8 years" },
-    { role: "Senior Tax Manager", min: 25, max: 40, median: 32.5, experience: "8+ years" }
-  ];
-
-  const locationData = [
-    { city: "Mumbai", avgSalary: 12.5, growth: 8.2, jobs: 145 },
-    { city: "Bangalore", avgSalary: 11.8, growth: 12.5, jobs: 120 },
-    { city: "Pune", avgSalary: 10.2, growth: 6.8, jobs: 89 },
-    { city: "Hyderabad", avgSalary: 9.8, growth: 15.2, jobs: 76 },
-    { city: "Chennai", avgSalary: 9.5, growth: 5.4, jobs: 54 },
-    { city: "Delhi NCR", avgSalary: 13.2, growth: 9.8, jobs: 98 }
-  ];
-
-  const trendData = [
-    { month: "Jan", salary: 10.2 },
-    { month: "Feb", salary: 10.5 },
-    { month: "Mar", salary: 10.8 },
-    { month: "Apr", salary: 11.2 },
-    { month: "May", salary: 11.5 },
-    { month: "Jun", salary: 11.8 },
-    { month: "Jul", salary: 12.1 },
-    { month: "Aug", salary: 12.3 },
-    { month: "Sep", salary: 12.5 },
-    { month: "Oct", salary: 12.8 },
-    { month: "Nov", salary: 13.0 },
-    { month: "Dec", salary: 13.2 }
-  ];
-
-  const skillPremiumData = [
-    { skill: "1065 Partnership", premium: 25, demand: "High" },
-    { skill: "Private Equity", premium: 35, demand: "Very High" },
-    { skill: "Operating Partnership", premium: 30, demand: "High" },
-    { skill: "Multi-state Filing", premium: 20, demand: "Medium" },
-    { skill: "1120 Corporate", premium: 15, demand: "High" },
-    { skill: "S Corporation", premium: 12, demand: "Medium" },
-    { skill: "1040 Individual", premium: 8, demand: "Medium" },
-    { skill: "Tax Research", premium: 18, demand: "High" }
-  ];
-
-  const companyData = [
-    { name: "Deloitte", range: "₹8L - ₹18L", avg: 13, color: "#0088FE" },
-    { name: "EY", range: "₹9L - ₹20L", avg: 14.5, color: "#00C49F" },
-    { name: "KPMG", range: "₹7L - ₹16L", avg: 11.5, color: "#FFBB28" },
-    { name: "PwC", range: "₹8L - ₹17L", avg: 12.5, color: "#FF8042" },
-    { name: "Genpact", range: "₹6L - ₹14L", avg: 10, color: "#8884D8" },
-    { name: "WNS", range: "₹5L - ₹12L", avg: 8.5, color: "#82CA9D" }
-  ];
+  const salaryData: Array<{ role: string; min: number; max: number; median: number; experience: string }> = [];
+  const locationData: Array<{ city: string; avgSalary: number; growth: number; jobs: number }> = [];
+  const trendData: Array<{ month: string; salary: number }> = [];
+  const skillPremiumData: Array<{ skill: string; premium: number; demand: string }> = [];
+  const companyData: Array<{ name: string; range: string; avg: number; color: string }> = [];
+  const hasData =
+    salaryData.length > 0 ||
+    locationData.length > 0 ||
+    trendData.length > 0 ||
+    skillPremiumData.length > 0 ||
+    companyData.length > 0;
 
   const getDemandColor = (demand: string) => {
     switch (demand) {
@@ -86,6 +46,24 @@ export function SalaryInsights() {
       default: return "bg-gray-100 text-gray-800";
     }
   };
+
+  if (!hasData) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center text-xl">
+              <DollarSign className="w-6 h-6 mr-2" />
+              Salary Insights
+            </CardTitle>
+            <p className="text-muted-foreground">
+              Market salary data is not available yet. Check back after more jobs and applications are on the platform.
+            </p>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

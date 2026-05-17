@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LoginPage } from "./components/LoginPage";
+import { LoginPage, type SignupRole } from "./components/LoginPage";
 import { Dashboard } from "./components/Dashboard";
 import { EmployerPortal } from "./components/EmployerPortal";
 import { AdminPortal } from "./components/AdminPortal";
@@ -30,8 +30,22 @@ import {
   isTokenExpired,
 } from "./utils/entra/tokenUtils";
 import { startSignInFlow } from "./utils/entra/entraAuthService";
+import { setLoginSessionRole } from "./utils/sessionRole";
+import { setSignupIntent } from "./utils/entra/signupIntent";
 
 type View = "landing" | "login" | "dashboard" | "employer-portal" | "admin-portal" | "employer-info" | "privacy-policy" | "terms-of-service" | "about";
+
+type LoginPageConfig = {
+  mode: "login" | "signup";
+  signupRole: SignupRole;
+  lockSignupRole: boolean;
+};
+
+const DEFAULT_LOGIN_CONFIG: LoginPageConfig = {
+  mode: "login",
+  signupRole: "candidate",
+  lockSignupRole: false,
+};
 
 const VIEW_PARAM_MAP: Record<string, View> = {
   dashboard: "dashboard",
@@ -75,6 +89,7 @@ export default function App() {
   const [showPayment, setShowPayment] = useState(false);
   const [privacyScrollTarget, setPrivacyScrollTarget] = useState<string | undefined>(undefined);
   const [showLinkedInLoading, setShowLinkedInLoading] = useState(false);
+  const [loginPageConfig, setLoginPageConfig] = useState<LoginPageConfig>(DEFAULT_LOGIN_CONFIG);
 
   useEffect(() => {
     // Re-hydrate localStorage-registered accounts into in-memory DB
@@ -152,15 +167,49 @@ export default function App() {
     }
   };
 
-  const handleShowLogin = async () => {
-    if ((await startSignInFlow()) === "entra") return;
+  const openAuthPage = (
+    mode: "login" | "signup",
+    signupRole: SignupRole = "candidate",
+    lockSignupRole = mode === "signup"
+  ) => {
+    setLoginPageConfig({ mode, signupRole, lockSignupRole });
     setCurrentView("login");
+  };
+
+  const handleCandidateLogin = async () => {
+    setLoginSessionRole("candidate");
+    setSignupIntent("candidate");
+    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
+    openAuthPage("login", "candidate", false);
+  };
+
+  const handleEmployerLogin = async () => {
+    setLoginSessionRole("employer");
+    setSignupIntent("employer_user");
+    if ((await startSignInFlow({ signupRole: "employer_user" })) === "entra") return;
+    openAuthPage("login", "employer_user", false);
+  };
+
+  const handleCandidateSignUp = async () => {
+    setLoginSessionRole("candidate");
+    setSignupIntent("candidate");
+    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
+    openAuthPage("signup", "candidate", true);
+  };
+
+  const handleEmployerSignUp = async () => {
+    setLoginSessionRole("employer");
+    setSignupIntent("employer_user");
+    if ((await startSignInFlow({ signupRole: "employer_user" })) === "entra") return;
+    openAuthPage("signup", "employer_user", true);
   };
 
   const handlePricingGetStarted = async (plan: PendingPlan) => {
     setPendingPlan(plan);
-    if ((await startSignInFlow()) === "entra") return;
-    setCurrentView("login");
+    setLoginSessionRole("candidate");
+    setSignupIntent("candidate");
+    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
+    openAuthPage("signup", "candidate", true);
   };
 
   const handleShowEmployerInfo = () => {
@@ -176,53 +225,6 @@ export default function App() {
     await supabase.auth.signOut();
     setUser(null);
     setCurrentView("landing");
-  };
-
-  const handleDemoLogin = () => {
-    // Create a mock user for testing
-    const mockUser = {
-      id: "demo-user-123",
-      email: "john.doe@example.com",
-      user_metadata: {
-        name: "John Doe",
-        role: "candidate"
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    setUser(mockUser);
-    setCurrentView("dashboard");
-  };
-
-  const handleDemoEmployerLogin = () => {
-    const mockEmployer = {
-      id: "demo-employer-123",
-      email: "recruiter@kpmg.com",
-      user_metadata: {
-        name: "KPMG Recruiter",
-        company: "KPMG India",
-        role: "employer"
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    setUser(mockEmployer);
-    setCurrentView("employer-portal");
-  };
-
-  const handleDemoAdminLogin = () => {
-    const mockAdmin = {
-      id: "demo-admin-123",
-      email: "admin@taxtalentsolution.com",
-      user_metadata: {
-        name: "Platform Admin",
-        role: "admin"
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    setUser(mockAdmin);
-    setCurrentView("admin-portal");
   };
 
   if (loading) {
@@ -267,7 +269,15 @@ export default function App() {
     return (
       <>
         {linkedInOverlay}
-        <LoginPage onBack={handleBackToLanding} onLocalLogin={handleLocalLogin} onLinkedInMatch={handleLinkedInMatch} />
+        <LoginPage
+          key={`${loginPageConfig.mode}-${loginPageConfig.signupRole}-${loginPageConfig.lockSignupRole}`}
+          onBack={handleBackToLanding}
+          onLocalLogin={handleLocalLogin}
+          onLinkedInMatch={handleLinkedInMatch}
+          initialMode={loginPageConfig.mode}
+          initialSignupRole={loginPageConfig.signupRole}
+          lockSignupRole={loginPageConfig.lockSignupRole}
+        />
         <Toaster />
       </>
     );
@@ -325,9 +335,13 @@ export default function App() {
   if (currentView === "employer-info") {
     return (
       <>
-        <Header onLoginClick={handleShowLogin} onAboutClick={() => setCurrentView("about")} />
+        <Header
+          onLoginClick={handleEmployerLogin}
+          onGetStartedClick={handleEmployerSignUp}
+          onAboutClick={() => setCurrentView("about")}
+        />
         <EmployerInfo
-          onGetStartedClick={handleShowLogin}
+          onGetStartedClick={handleEmployerSignUp}
           onCandidateClick={handleBackToLanding}
         />
         <Footer onPrivacyPolicyClick={() => { setPrivacyScrollTarget(undefined); setCurrentView("privacy-policy"); }} onTermsClick={() => setCurrentView("terms-of-service")} onCookiePolicyClick={() => { setPrivacyScrollTarget("cookies"); setCurrentView("privacy-policy"); }} onAboutClick={() => setCurrentView("about")} />
@@ -365,40 +379,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onLoginClick={handleShowLogin} onAboutClick={() => setCurrentView("about")} />
+      <Header
+        onLoginClick={handleCandidateLogin}
+        onGetStartedClick={handleCandidateSignUp}
+        onAboutClick={() => setCurrentView("about")}
+      />
       <CookieConsent onPrivacyPolicyClick={() => setCurrentView("privacy-policy")} />
-      <Hero onGetStartedClick={handleShowLogin} onEmployersClick={handleShowEmployerInfo} />
+      <Hero onGetStartedClick={handleCandidateSignUp} onEmployersClick={handleShowEmployerInfo} />
 
       {/* Spacing and Separator */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <Separator className="bg-border" />
       </div>
 
-      {/* Demo Login Button for Testing */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <div className="space-y-2">
-          <button
-            onClick={handleDemoLogin}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 text-sm"
-          >
-            👤 Candidate Demo
-          </button>
-          <button
-            onClick={handleDemoEmployerLogin}
-            className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 text-sm"
-          >
-            💼 Employer Demo
-          </button>
-          <button
-            onClick={handleDemoAdminLogin}
-            className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg transition-colors duration-200 text-sm"
-          >
-            🔑 Admin Demo
-          </button>
-        </div>
-      </div>
-
-      <HowItWorks onGetStartedClick={handleShowLogin} />
+      <HowItWorks onGetStartedClick={handleCandidateSignUp} />
       <Features />
       <Articles />
       <Pricing onGetStarted={handlePricingGetStarted} />

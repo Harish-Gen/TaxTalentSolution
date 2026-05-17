@@ -35,93 +35,7 @@ interface Interview {
   status: "completed" | "pending";
 }
 
-// Mock data for interviews
-const mockInterviews: Interview[] = [
-  {
-    id: 1,
-    date: "2024-12-15",
-    interviewer: "Sarah Johnson",
-    interviewerRole: "Senior Tax Manager",
-    company: "KPMG India",
-    position: "Senior Tax Analyst - 1040 Specialist",
-    overallRating: 4.5,
-    ratings: {
-      technicalSkills: 5,
-      communication: 4,
-      problemSolving: 4.5,
-      taxKnowledge: 5
-    },
-    strengths: [
-      "Exceptional knowledge of Form 1040 complexities",
-      "Strong understanding of Schedule C and self-employment tax",
-      "Excellent analytical skills in identifying deductions",
-      "Proactive in asking clarifying questions"
-    ],
-    areasForImprovement: [
-      "Could enhance knowledge of international tax treaties",
-      "Recommended to gain more experience with state tax considerations"
-    ],
-    detailedFeedback: "The candidate demonstrated excellent technical proficiency in individual tax return preparation. Their understanding of complex 1040 scenarios, including self-employment income and itemized deductions, was impressive. They showed strong problem-solving abilities when presented with a multi-state tax scenario. Communication was clear and professional throughout the interview.",
-    recommendation: "Highly Recommended",
-    status: "completed"
-  },
-  {
-    id: 2,
-    date: "2024-12-10",
-    interviewer: "Michael Chen",
-    interviewerRole: "Tax Director",
-    company: "Deloitte USI",
-    position: "Tax Consultant - Partnership",
-    overallRating: 3.8,
-    ratings: {
-      technicalSkills: 4,
-      communication: 3.5,
-      problemSolving: 4,
-      taxKnowledge: 4
-    },
-    strengths: [
-      "Good grasp of partnership taxation fundamentals",
-      "Solid understanding of Form 1065",
-      "Demonstrated knowledge of K-1 reporting"
-    ],
-    areasForImprovement: [
-      "Needs more exposure to complex partnership allocations",
-      "Recommended training in operating partnership structures",
-      "Could improve presentation skills"
-    ],
-    detailedFeedback: "Candidate shows promise in partnership taxation. While the foundational knowledge is solid, there's room for growth in handling more complex scenarios. With additional training and exposure, they could become a valuable team member.",
-    recommendation: "Recommended",
-    status: "completed"
-  },
-  {
-    id: 3,
-    date: "2024-12-05",
-    interviewer: "Jennifer Williams",
-    interviewerRole: "HR Manager",
-    company: "PwC AC",
-    position: "Tax Associate - Corporate",
-    overallRating: 4.2,
-    ratings: {
-      technicalSkills: 4,
-      communication: 4.5,
-      problemSolving: 4,
-      taxKnowledge: 4.5
-    },
-    strengths: [
-      "Excellent communication and interpersonal skills",
-      "Strong work ethic and eagerness to learn",
-      "Good understanding of corporate tax concepts",
-      "Team player with positive attitude"
-    ],
-    areasForImprovement: [
-      "Expand knowledge of international corporate tax",
-      "Gain more practical experience with tax software"
-    ],
-    detailedFeedback: "Very impressive candidate from both technical and soft skills perspective. Shows great potential for growth and adaptation to our team culture.",
-    recommendation: "Highly Recommended",
-    status: "completed"
-  }
-];
+const interviews: Interview[] = [];
 
 export function InterviewFeedback() {
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
@@ -314,7 +228,7 @@ export function InterviewFeedback() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Interviews</p>
-                <p className="text-2xl mt-1">{mockInterviews.length}</p>
+                <p className="text-2xl mt-1">{interviews.length}</p>
               </div>
               <FileText className="w-8 h-8 text-primary opacity-50" />
             </div>
@@ -327,7 +241,9 @@ export function InterviewFeedback() {
               <div>
                 <p className="text-sm text-muted-foreground">Average Rating</p>
                 <p className="text-2xl mt-1">
-                  {(mockInterviews.reduce((acc, int) => acc + int.overallRating, 0) / mockInterviews.length).toFixed(1)}
+                  {interviews.length
+                    ? (interviews.reduce((acc, int) => acc + int.overallRating, 0) / interviews.length).toFixed(1)
+                    : "—"}
                 </p>
               </div>
               <Star className="w-8 h-8 text-yellow-400 opacity-50 fill-yellow-400" />
@@ -341,7 +257,7 @@ export function InterviewFeedback() {
               <div>
                 <p className="text-sm text-muted-foreground">Highly Recommended</p>
                 <p className="text-2xl mt-1">
-                  {mockInterviews.filter(i => i.recommendation === "Highly Recommended").length}
+                  {interviews.filter(i => i.recommendation === "Highly Recommended").length}
                 </p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-600 opacity-50" />
@@ -354,7 +270,7 @@ export function InterviewFeedback() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Companies</p>
-                <p className="text-2xl mt-1">{new Set(mockInterviews.map(i => i.company)).size}</p>
+                <p className="text-2xl mt-1">{new Set(interviews.map(i => i.company)).size}</p>
               </div>
               <User className="w-8 h-8 text-blue-600 opacity-50" />
             </div>
@@ -371,8 +287,13 @@ export function InterviewFeedback() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {interviews.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No interview feedback yet. Feedback from employers will appear here after your interviews.
+            </p>
+          ) : (
           <div className="space-y-4">
-            {mockInterviews.map((interview) => (
+            {interviews.map((interview) => (
               <Card key={interview.id} className="border-l-4 border-l-primary">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
@@ -415,6 +336,7 @@ export function InterviewFeedback() {
               </Card>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

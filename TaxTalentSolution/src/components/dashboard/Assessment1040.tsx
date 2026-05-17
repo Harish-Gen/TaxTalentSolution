@@ -39,7 +39,7 @@ interface AssessmentState {
   showCertificate: boolean;
 }
 
-const questions: Question[] = [
+const DEMO_1040_QUESTIONS: Question[] = [
   {
     id: 1,
     question: "What is the standard deduction for a single filer in tax year 2023?",
@@ -492,16 +492,44 @@ const questions: Question[] = [
   }
 ];
 
-export function Assessment1040({ onBack }: { onBack: () => void }) {
+export function Assessment1040({
+  onBack,
+  onComplete,
+  assessmentTitle,
+  examQuestions,
+  durationMinutes,
+}: {
+  onBack: () => void;
+  onComplete?: (score: number) => void;
+  assessmentTitle?: string;
+  examQuestions?: Question[];
+  durationMinutes?: number;
+}) {
+  const questionBank = examQuestions?.length ? examQuestions : DEMO_1040_QUESTIONS;
+  const durationSeconds = (durationMinutes ?? 45) * 60;
+  const displayTitle = assessmentTitle || "1040 Individual Tax Returns Assessment";
+
   const [assessment, setAssessment] = useState<AssessmentState>({
     currentQuestion: 0,
     answers: {},
-    timeRemaining: 45 * 60, // 45 minutes in seconds
+    timeRemaining: durationSeconds,
     isCompleted: false,
     score: 0,
     showResults: false,
     showCertificate: false
   });
+
+  useEffect(() => {
+    setAssessment({
+      currentQuestion: 0,
+      answers: {},
+      timeRemaining: durationSeconds,
+      isCompleted: false,
+      score: 0,
+      showResults: false,
+      showCertificate: false,
+    });
+  }, [examQuestions, durationMinutes, durationSeconds]);
 
   // Timer effect
   useEffect(() => {
@@ -535,7 +563,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
   };
 
   const handleNextQuestion = () => {
-    if (assessment.currentQuestion < questions.length - 1) {
+    if (assessment.currentQuestion < questionBank.length - 1) {
       setAssessment(prev => ({
         ...prev,
         currentQuestion: prev.currentQuestion + 1
@@ -553,11 +581,11 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
   };
 
   const handleCompleteAssessment = () => {
-    const correctAnswers = questions.reduce((count, question, index) => {
+    const correctAnswers = questionBank.reduce((count, question, index) => {
       return assessment.answers[index] === question.correctAnswer ? count + 1 : count;
     }, 0);
     
-    const scorePercentage = Math.round((correctAnswers / questions.length) * 100);
+    const scorePercentage = Math.round((correctAnswers / questionBank.length) * 100);
     
     setAssessment(prev => ({
       ...prev,
@@ -565,6 +593,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
       score: scorePercentage,
       showResults: true
     }));
+    onComplete?.(scorePercentage);
   };
 
   const handleShowCertificate = () => {
@@ -574,8 +603,8 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
     }));
   };
 
-  const currentQuestion = questions[assessment.currentQuestion];
-  const progress = ((assessment.currentQuestion + 1) / questions.length) * 100;
+  const currentQuestion = questionBank[assessment.currentQuestion];
+  const progress = ((assessment.currentQuestion + 1) / questionBank.length) * 100;
   const answeredQuestions = Object.keys(assessment.answers).length;
 
   if (assessment.showCertificate) {
@@ -595,7 +624,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
                 <p className="text-lg text-gray-600 mb-4">This is to certify that</p>
                 <p className="text-4xl font-bold text-blue-700 mb-4">John Doe</p>
                 <p className="text-lg text-gray-600 mb-2">has successfully completed the</p>
-                <p className="text-2xl font-semibold text-gray-800 mb-6">1040 Individual Tax Returns Assessment</p>
+                <p className="text-2xl font-semibold text-gray-800 mb-6">{displayTitle}</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -604,7 +633,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
                   <div className="text-sm text-gray-600">Score Achieved</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">50</div>
+                  <div className="text-2xl font-bold text-blue-600">{questionBank.length}</div>
                   <div className="text-sm text-gray-600">Questions Completed</div>
                 </div>
                 <div className="text-center">
@@ -672,7 +701,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
               Assessment Completed!
             </CardTitle>
             <p className="text-muted-foreground">
-              1040 Individual Tax Returns Assessment Results
+              {displayTitle} Results
             </p>
           </CardHeader>
         </Card>
@@ -691,17 +720,17 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
           
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="text-4xl font-bold text-blue-600 mb-2">{Object.keys(assessment.answers).filter(key => assessment.answers[parseInt(key)] === questions[parseInt(key)].correctAnswer).length}</div>
+              <div className="text-4xl font-bold text-blue-600 mb-2">{Object.keys(assessment.answers).filter(key => assessment.answers[parseInt(key)] === questionBank[parseInt(key)].correctAnswer).length}</div>
               <div className="text-sm text-muted-foreground">Correct Answers</div>
-              <div className="text-xs text-muted-foreground mt-1">out of {questions.length} questions</div>
+              <div className="text-xs text-muted-foreground mt-1">out of {questionBank.length} questions</div>
             </CardContent>
           </Card>
           
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="text-4xl font-bold text-purple-600 mb-2">{formatTime(45 * 60 - assessment.timeRemaining)}</div>
+              <div className="text-4xl font-bold text-purple-600 mb-2">{formatTime(durationSeconds - assessment.timeRemaining)}</div>
               <div className="text-sm text-muted-foreground">Time Taken</div>
-              <div className="text-xs text-muted-foreground mt-1">out of 45:00</div>
+              <div className="text-xs text-muted-foreground mt-1">out of {formatTime(durationSeconds)}</div>
             </CardContent>
           </Card>
         </div>
@@ -712,7 +741,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
             <CardTitle>Question Review</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {questions.map((question, index) => {
+            {questionBank.map((question, index) => {
               const userAnswer = assessment.answers[index];
               const isCorrect = userAnswer === question.correctAnswer;
               
@@ -789,10 +818,10 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-6 h-6" />
-                1040 Individual Tax Returns Assessment
+                {displayTitle}
               </CardTitle>
               <p className="text-muted-foreground mt-1">
-                Question {assessment.currentQuestion + 1} of {questions.length}
+                Question {assessment.currentQuestion + 1} of {questionBank.length}
               </p>
             </div>
             <div className="text-right">
@@ -801,7 +830,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
                 {formatTime(assessment.timeRemaining)}
               </div>
               <Badge variant="outline">
-                {answeredQuestions}/{questions.length} answered
+                {answeredQuestions}/{questionBank.length} answered
               </Badge>
             </div>
           </div>
@@ -858,11 +887,11 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
         </Button>
         
         <div className="flex gap-2">
-          {assessment.currentQuestion === questions.length - 1 ? (
+          {assessment.currentQuestion === questionBank.length - 1 ? (
             <Button 
               onClick={handleCompleteAssessment}
               className="bg-green-600 hover:bg-green-700"
-              disabled={answeredQuestions < questions.length}
+              disabled={answeredQuestions < questionBank.length}
             >
               <CheckCircle className="w-4 h-4 mr-2" />
               Complete Assessment
@@ -870,7 +899,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
           ) : (
             <Button 
               onClick={handleNextQuestion}
-              disabled={assessment.currentQuestion === questions.length - 1}
+              disabled={assessment.currentQuestion === questionBank.length - 1}
             >
               Next
               <ArrowRight className="w-4 h-4 ml-2" />
@@ -886,7 +915,7 @@ export function Assessment1040({ onBack }: { onBack: () => void }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-10 gap-2">
-            {questions.map((_, index) => (
+            {questionBank.map((_, index) => (
               <Button
                 key={index}
                 variant={assessment.currentQuestion === index ? "default" : "outline"}

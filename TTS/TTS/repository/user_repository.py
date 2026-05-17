@@ -16,9 +16,33 @@ class UserRepository(IUserRepository):
         return dict(zip(columns, row))
 
     def _get_employer_ids_for_user(self, cursor, user_id: str) -> List[UUID]:
-        cursor.execute("SELECT employerid FROM user_employers WHERE userid = ? AND isactive = 1", user_id)
-        rows = cursor.fetchall()
-        return [UUID(row[0]) for row in rows]
+        ids: List[UUID] = []
+        seen = set()
+
+        cursor.execute(
+            "SELECT employerid FROM user_employers WHERE userid = ? AND isactive = 1",
+            user_id,
+        )
+        for row in cursor.fetchall():
+            eid = UUID(row[0])
+            key = str(eid)
+            if key not in seen:
+                seen.add(key)
+                ids.append(eid)
+
+        # Sample/legacy schema: employer row owned by this user (employers.userid).
+        cursor.execute(
+            "SELECT id FROM employers WHERE userid = ? AND isactive = 1",
+            user_id,
+        )
+        for row in cursor.fetchall():
+            eid = UUID(row[0])
+            key = str(eid)
+            if key not in seen:
+                seen.add(key)
+                ids.append(eid)
+
+        return ids
 
     def _get_role_for_user(self, cursor, role_id: str) -> Optional[dict]:
         if not role_id:
@@ -28,14 +52,34 @@ class UserRepository(IUserRepository):
         return self._row_to_dict(cursor, row)
 
     def _get_employers_for_user(self, cursor, user_id: str) -> List[dict]:
+        employers: List[dict] = []
+        seen = set()
+
         cursor.execute("""
-            SELECT e.* 
+            SELECT e.*
             FROM employers e
             JOIN user_employers ue ON e.id = ue.employerid
             WHERE ue.userid = ? AND ue.isactive = 1
         """, str(user_id))
-        rows = cursor.fetchall()
-        return [self._row_to_dict(cursor, row) for row in rows]
+        for row in cursor.fetchall():
+            data = self._row_to_dict(cursor, row)
+            eid = str(data.get("id"))
+            if eid and eid not in seen:
+                seen.add(eid)
+                employers.append(data)
+
+        cursor.execute(
+            "SELECT * FROM employers WHERE userid = ? AND isactive = 1",
+            str(user_id),
+        )
+        for row in cursor.fetchall():
+            data = self._row_to_dict(cursor, row)
+            eid = str(data.get("id"))
+            if eid and eid not in seen:
+                seen.add(eid)
+                employers.append(data)
+
+        return employers
 
     def _get_candidate_details(self, cursor, user_id: str) -> Optional[dict]:
         cursor.execute("SELECT * FROM candidates WHERE userid = ? AND isactive = 1", str(user_id))

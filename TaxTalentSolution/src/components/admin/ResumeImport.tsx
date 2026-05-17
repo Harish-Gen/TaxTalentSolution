@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { parseLinkedInPDF } from "../../utils/resumeParser";
 import type { ParsedCandidate } from "../../utils/resumeParser";
-import { LocalDatabase } from "../../database/localDb";
+import { candidateService } from "../../api/candidateService";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -29,6 +29,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { uploadFileToStorage } from "../../api/fileService";
 
 // Use CDN worker to avoid Vite bundler complexity with pdfjs workers
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -323,7 +324,7 @@ export function ResumeImport() {
     });
   };
 
-  const handleSave = (fileId: string) => {
+  const handleSave = async (fileId: string) => {
     const f = files.find((fi) => fi.id === fileId);
     if (!f) return;
     if (!f.form.email) {
@@ -331,7 +332,21 @@ export function ResumeImport() {
       return;
     }
     try {
-      LocalDatabase.addImportedCandidate(f.form);
+      const stored = await uploadFileToStorage(f.file, "resumes");
+      await candidateService.upsertCandidate({
+        name: f.form.name,
+        email: f.form.email,
+        phone: f.form.phone || "0000000000",
+        headline: f.form.headline,
+        location_city: f.form.locationCity || "",
+        location_state: f.form.locationState || "",
+        experience_years: f.form.experienceYears || 0,
+        summary: f.form.summary,
+        resume_url: stored.name,
+        status: "pending",
+        availability: "immediate",
+        work_mode: "remote",
+      });
       setFiles((prev) =>
         prev.map((fi) => (fi.id === fileId ? { ...fi, status: "saved" } : fi))
       );

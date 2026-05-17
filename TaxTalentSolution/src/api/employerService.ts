@@ -3,6 +3,8 @@ import type { Employer as DBEmployer } from '../database/types';
 
 export interface BackendEmployer {
   id: string;
+  userid?: string;
+  user?: { id?: string; name?: string; email?: string; phone?: string };
   companyname?: string;
   contactperson?: string;
   email?: string;
@@ -24,24 +26,38 @@ export interface BackendEmployer {
   lastactive?: string;
 }
 
-function mapToDBEmployer(backend: BackendEmployer): DBEmployer & { isactive?: boolean; contact_person?: string; email?: string; phone?: string } {
+function mapToDBEmployer(backend: BackendEmployer): DBEmployer & {
+  isactive?: boolean;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  user_id?: string;
+} {
+  const backendLoc = backend as BackendEmployer & {
+    headquarterscity?: string;
+    headquartersstate?: string;
+    headquarterscountry?: string;
+  };
   const locationParts = backend.location ? backend.location.split(/,\s*/) : [];
-  const city = locationParts[0] || '';
-  const state = locationParts[1] || '';
+  const city = backendLoc.headquarterscity || locationParts[0] || '';
+  const state = backendLoc.headquartersstate || locationParts[1] || '';
+  const country = backendLoc.headquarterscountry || 'IN';
+  const ownerUser = backend.user;
 
   return {
     id: backend.id,
-    company_name: backend.companyname || '',
+    user_id: backend.userid || ownerUser?.id,
+    company_name: backend.companyname || ownerUser?.name || '',
     contact_person: backend.contactperson || '',
-    email: backend.email || '',
-    phone: backend.phone || '',
+    email: backend.email || ownerUser?.email || '',
+    phone: backend.phone || ownerUser?.phone || '',
     logo_url: backend.logourl,
     website: backend.website,
     industry: backend.industry,
     company_size: backend.companysize,
     headquarters_city: city,
     headquarters_state: state,
-    headquarters_country: 'India',
+    headquarters_country: country || 'IN',
     description: backend.description,
     status: (backend.status as any) || 'pending',
     subscription_plan: (backend.subscriptionplan as any) || 'basic',
@@ -56,17 +72,18 @@ function mapToDBEmployer(backend: BackendEmployer): DBEmployer & { isactive?: bo
 }
 
 function mapToBackend(frontend: any): Partial<BackendEmployer> {
-  const location = frontend.headquarters_city && frontend.headquarters_state 
-    ? `${frontend.headquarters_city}, ${frontend.headquarters_state}`
-    : (frontend.headquarters_city || frontend.headquarters_state || '');
+  const city = frontend.headquarters_city?.trim() || '';
+  const state = frontend.headquarters_state?.trim() || '';
+  const location =
+    city && state ? `${city}, ${state}` : city || state || undefined;
 
-  return {
+  const payload: Partial<BackendEmployer> = {
     id: frontend.id,
+    userid: frontend.user_id,
     companyname: frontend.company_name,
     contactperson: frontend.contact_person,
     email: frontend.email,
     phone: frontend.phone,
-    location: location,
     logourl: frontend.logo_url,
     website: frontend.website,
     industry: frontend.industry,
@@ -77,6 +94,15 @@ function mapToBackend(frontend: any): Partial<BackendEmployer> {
     monthlybudget: frontend.monthly_budget,
     isactive: frontend.isactive ?? true,
   };
+
+  if (location) payload.location = location;
+  if (city) payload.headquarterscity = city;
+  if (state) payload.headquartersstate = state;
+  if (frontend.headquarters_country) {
+    payload.headquarterscountry = frontend.headquarters_country;
+  }
+
+  return payload;
 }
 
 export const employerService = {

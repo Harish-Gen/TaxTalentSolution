@@ -8,6 +8,7 @@ import { EmployerManagement } from "./admin/EmployerManagement";
 import { UserManagement } from "./admin/UserManagement";
 import { JobManagement } from "./admin/JobManagement";
 import { ResumeImport } from "./admin/ResumeImport";
+import { AdminSettings } from "./admin/AdminSettings";
 import { 
   LayoutDashboard,
   Users,
@@ -64,12 +65,7 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
       case "resume-import":
         return <ResumeImport />;
       case "settings":
-        return (
-          <div className="text-center py-12 text-muted-foreground">
-            <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Admin settings coming soon</p>
-          </div>
-        );
+        return <AdminSettings user={user} />;
       default:
         return <AdminDashboard onNavigate={handleNavigate} />;
     }
@@ -129,7 +125,13 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
             </div>
           </div>
           <div className="flex space-x-1">
-            <Button variant="ghost" size="sm" className="flex-1 px-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 px-2"
+              onClick={() => setActiveSection("settings")}
+              title="Settings"
+            >
               <Settings className="w-3.5 h-3.5" />
             </Button>
             <Button variant="ghost" size="sm" className="flex-1 px-2">

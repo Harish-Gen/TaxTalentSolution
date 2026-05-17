@@ -6,6 +6,8 @@ from typing import Optional
 from pydantic import BaseModel
 from uuid import UUID
 from repository.user_repository import UserRepository
+from repository.candidate_repository import CandidateRepository
+from repository.employer_repository import EmployerRepository
 from models.user import UserCreateUpdate
 from config.settings import settings
 from utils.entra_claims import phone_from_claims
@@ -21,6 +23,7 @@ router = APIRouter(
 
 class SignUpOrSignInRequest(BaseModel):
     Token: str
+    Role: Optional[str] = None  # candidate | employer (new users only)
 
 
 class SignUpOrSignInResponse(BaseModel):
@@ -60,6 +63,14 @@ def _email_from_claims(claims: dict) -> str:
     if not email:
         raise HTTPException(status_code=400, detail="Email claim missing from token")
     return str(email).lower()
+
+
+def _role_id_for_signup(role_hint: Optional[str]) -> str:
+    if role_hint and "employer" in str(role_hint).lower():
+        employer_id = settings.default_employer_role_id
+        if employer_id:
+            return employer_id
+    return settings.default_candidate_role_id
 
 
 def _name_from_claims(claims: dict) -> str:
@@ -125,19 +136,60 @@ def sign_up_or_sign_in(
         existing = repo.get_user_by_email(email)
         is_new_user = existing is None
 
+        wants_employer = bool(
+            request.Role and "employer" in str(request.Role).lower()
+        )
+
         if is_new_user:
+            role_id = _role_id_for_signup(request.Role)
             new_user = UserCreateUpdate(
                 name=name,
                 email=email,
                 phone=phone,
-                roleid=UUID(settings.default_candidate_role_id),
+                roleid=UUID(role_id),
                 isactive=True,
             )
             user = repo.upsert_user(new_user)
         else:
             user = existing
+            if wants_employer:
+                employer_role_id = settings.default_employer_role_id
+                if (
+                    employer_role_id
+                    and str(user.roleid).upper() != employer_role_id.upper()
+                ):
+                    user = repo.upsert_user(
+                        UserCreateUpdate(
+                            id=user.id,
+                            roleid=UUID(employer_role_id),
+                        )
+                    )
 
         role_name = user.role.get("name") if user.role else "candidate"
+
+        is_candidate = (
+            str(user.roleid).upper() == settings.default_candidate_role_id.upper()
+            or str(role_name).lower() == "candidate"
+        )
+        is_employer = (
+            str(user.roleid).upper() == settings.default_employer_role_id.upper()
+            or "employer" in str(role_name).lower()
+            or wants_employer
+        )
+        if is_candidate and not wants_employer and is_new_user:
+            try:
+                CandidateRepository().ensure_candidate_for_user(user.id)
+            except Exception as exc:
+                logger.warning("Could not ensure candidate profile for user %s: %s", user.id, exc)
+        if is_employer and is_new_user:
+            try:
+                EmployerRepository().ensure_employer_for_user(
+                    user.id, name=name, email=email, phone=phone
+                )
+            except Exception as exc:
+                logger.warning("Could not ensure employer profile for user %s: %s", user.id, exc)
+            user = repo.get_user_by_email(email) or user
+            role_name = user.role.get("name") if user.role else role_name
 
         return SignUpOrSignInResponse(
             Token=token,
@@ -147,6 +199,7 @@ def sign_up_or_sign_in(
                 "email": user.email,
                 "name": user.name,
                 "role": role_name,
+                "roleid": str(user.roleid) if user.roleid else None,
             },
         )
     except HTTPException:

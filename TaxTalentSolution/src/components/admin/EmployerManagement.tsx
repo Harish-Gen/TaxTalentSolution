@@ -42,6 +42,7 @@ interface EmployerUI {
   location: string;
   location_city: string;
   location_state: string;
+  location_country: string;
   industry: string;
   size: string;
   website: string;
@@ -54,7 +55,7 @@ interface EmployerUI {
 }
 
 export function EmployerManagement() {
-  const { employers: dbEmployers, loading } = useEmployers();
+  const { employers: dbEmployers, loading, refresh } = useEmployers();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedEmployer, setSelectedEmployer] = useState<EmployerUI | null>(null);
@@ -72,6 +73,7 @@ export function EmployerManagement() {
     phone: "",
     location_city: "",
     location_state: "",
+    location_country: "IN",
     industry: "",
     size: "",
     website: "",
@@ -90,6 +92,7 @@ export function EmployerManagement() {
         location: emp.headquarters_city ? `${emp.headquarters_city}, ${emp.headquarters_state || ''}` : "N/A",
         location_city: emp.headquarters_city || "",
         location_state: emp.headquarters_state || "",
+        location_country: emp.headquarters_country || "IN",
         industry: emp.industry || "N/A",
         size: emp.company_size || "N/A",
         website: emp.website || "N/A",
@@ -121,9 +124,11 @@ export function EmployerManagement() {
         website: newEmployer.website,
         headquarters_city: newEmployer.location_city,
         headquarters_state: newEmployer.location_state,
+        headquarters_country: newEmployer.location_country,
         description: newEmployer.description,
         status: "pending"
       });
+      await refresh();
       toast.success("Employer added successfully");
       setIsAddDialogOpen(false);
       setNewEmployer({
@@ -140,7 +145,7 @@ export function EmployerManagement() {
       });
     } catch (error) {
       console.error("Failed to add employer:", error);
-      toast.error("Failed to add employer");
+      toast.error(error instanceof Error ? error.message : "Failed to add employer");
     }
   };
 
@@ -155,17 +160,19 @@ export function EmployerManagement() {
         phone: editEmployer.phone,
         headquarters_city: editEmployer.location_city,
         headquarters_state: editEmployer.location_state,
+        headquarters_country: editEmployer.location_country,
         industry: editEmployer.industry,
         company_size: editEmployer.size,
         website: editEmployer.website,
         status: editEmployer.status as any
       });
+      await refresh();
       toast.success("Employer updated successfully");
       setIsEditDialogOpen(false);
       setEditEmployer(null);
     } catch (error) {
       console.error("Failed to update employer:", error);
-      toast.error("Failed to update employer");
+      toast.error(error instanceof Error ? error.message : "Failed to update employer");
     }
   };
 
@@ -180,6 +187,7 @@ export function EmployerManagement() {
         phone: fresh.phone || "N/A",
         location_city: fresh.headquarters_city || "",
         location_state: fresh.headquarters_state || "",
+        location_country: fresh.headquarters_country || "IN",
         industry: fresh.industry || "N/A",
         size: fresh.company_size || "N/A",
         website: fresh.website || "N/A",
@@ -196,6 +204,7 @@ export function EmployerManagement() {
   const handleDeleteEmployer = async (id: string) => {
     try {
       await employerService.deleteEmployer(id);
+      await refresh();
       toast.success("Employer deleted successfully");
     } catch (error) {
       console.error("Failed to delete employer:", error);
@@ -208,6 +217,7 @@ export function EmployerManagement() {
   const handleStatusChange = async (id: string, newStatus: any) => {
     try {
       await employerService.upsertEmployer({ id, status: newStatus });
+      await refresh();
       toast.success(`Status updated to ${newStatus}`);
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -286,7 +296,7 @@ export function EmployerManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input
@@ -301,6 +311,15 @@ export function EmployerManagement() {
                     id="state"
                     value={newEmployer.location_state}
                     onChange={(e) => setNewEmployer({...newEmployer, location_state: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    value={newEmployer.location_country}
+                    onChange={(e) => setNewEmployer({...newEmployer, location_country: e.target.value})}
+                    placeholder="IN"
                   />
                 </div>
               </div>
@@ -552,7 +571,7 @@ export function EmployerManagement() {
                   onChange={(e) => setEditEmployer({ ...editEmployer, companyName: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>City</Label>
                   <Input
@@ -565,6 +584,14 @@ export function EmployerManagement() {
                   <Input
                     value={editEmployer.location_state}
                     onChange={(e) => setEditEmployer({ ...editEmployer, location_state: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Country</Label>
+                  <Input
+                    value={editEmployer.location_country}
+                    onChange={(e) => setEditEmployer({ ...editEmployer, location_country: e.target.value })}
+                    placeholder="IN"
                   />
                 </div>
               </div>

@@ -3,26 +3,28 @@
 // React hooks for accessing local database
 // =====================================================
 
-import { useState, useEffect, useMemo } from 'react';
-import LocalDatabase, {
-  users,
-  candidates,
-  employers,
-  employerUsers,
-  jobs,
-  jobApplications,
-  assessments,
-  certificates,
-  notifications,
-  adminUsers,
-  candidateSkills,
-  skillsMaster,
-} from './localDb';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { candidateSkills } from './localDb';
 import { candidateService } from '../api/candidateService';
-import { assessmentService } from '../api/assessmentService';
+import {
+  assessmentService,
+  isCandidateVisibleAssessment,
+} from '../api/assessmentService';
+import {
+  userAssessmentService,
+  isUuid,
+  type BackendUserAssessment,
+} from '../api/userAssessmentService';
+import { loadUserAssessments, type StoredUserAssessment } from './assessmentUserStore';
 import { employerService } from '../api/employerService';
 import { jobService } from '../api/jobService';
 import { userService } from '../api/userService';
+import { jobApplicationService } from '../api/jobApplicationService';
+import { certificateService } from '../api/certificateService';
+import { notificationService } from '../api/notificationService';
+import { adminUserService } from '../api/adminUserService';
+import { savedCandidateService } from '../api/savedCandidateService';
+import { profileViewService } from '../api/profileViewService';
 import type {
   User,
   Candidate,
@@ -108,9 +110,14 @@ export function useCurrentUser(email: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setUser(LocalDatabase.getUserByEmail(email) || null);
-      setLoading(false);
+      try {
+        const all = await userService.getUsers();
+        setUser(all.find((u) => u.email?.toLowerCase() === email.toLowerCase()) || null);
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [email]);
@@ -126,23 +133,24 @@ export function useCandidates() {
   const [data, setData] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchCandidates = async () => {
+    setLoading(true);
+    try {
+      const result = await candidateService.getCandidates();
+      setData(result);
+    } catch (error) {
+      console.error('Failed to fetch candidates:', error);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const result = await candidateService.getCandidates();
-        setData(result);
-      } catch (error) {
-        console.error('Failed to fetch candidates:', error);
-        setData([]); 
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    void fetchCandidates();
   }, []);
 
-  return { candidates: data, loading };
+  return { candidates: data, loading, refresh: fetchCandidates };
 }
 
 export function useCandidate(id: string | undefined) {
@@ -170,7 +178,21 @@ export function useCandidate(id: string | undefined) {
     fetchData();
   }, [id]);
 
-  return { candidate, loading };
+  const refresh = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const result = await candidateService.getCandidateById(id);
+      setCandidate(result);
+    } catch (error) {
+      console.error(`Failed to fetch candidate ${id}:`, error);
+      setCandidate(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { candidate, loading, refresh };
 }
 
 export function useCandidateProfile(candidateId: string | undefined) {
@@ -185,8 +207,7 @@ export function useCandidateProfile(candidateId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setProfile(LocalDatabase.getCandidateProfile(candidateId));
+      setProfile(null);
       setLoading(false);
     };
     fetchData();
@@ -202,14 +223,27 @@ export function useCandidateByUserId(userId: string | undefined) {
   useEffect(() => {
     if (!userId) {
       setLoading(false);
+      setCandidate(null);
       return;
     }
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setCandidate(LocalDatabase.getCandidateByUserId(userId) || null);
-      setLoading(false);
+      try {
+        if (isUuid(userId)) {
+          const result = await candidateService.getCandidateByUserId(userId, {
+            ensure: true,
+          });
+          setCandidate(result);
+        } else {
+          setCandidate(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch candidate by user:', error);
+        setCandidate(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [userId]);
@@ -279,7 +313,21 @@ export function useEmployer(id: string | undefined) {
     fetchData();
   }, [id]);
 
-  return { employer, loading };
+  const refresh = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const result = await employerService.getEmployerById(id);
+      setEmployer(result);
+    } catch (error) {
+      console.error(`Failed to fetch employer ${id}:`, error);
+      setEmployer(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { employer, loading, refresh };
 }
 
 export function useEmployerUsers(employerId: string | undefined) {
@@ -294,8 +342,7 @@ export function useEmployerUsers(employerId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getEmployerUsers(employerId));
+      setData([]);
       setLoading(false);
     };
     fetchData();
@@ -397,9 +444,25 @@ export function useJobWithEmployer(jobId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setJob(LocalDatabase.getJobWithEmployer(jobId));
-      setLoading(false);
+      try {
+        const j = await jobService.getJobById(jobId);
+        if (!j) {
+          setJob(null);
+          return;
+        }
+        const employer = j.employer_id
+          ? await employerService.getEmployerById(j.employer_id)
+          : null;
+        if (!employer) {
+          setJob(null);
+          return;
+        }
+        setJob({ ...j, employer });
+      } catch {
+        setJob(null);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [jobId]);
@@ -419,9 +482,14 @@ export function useEmployerJobs(employerId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getJobsByEmployer(employerId));
-      setLoading(false);
+      try {
+        const all = await jobService.getJobs();
+        setData(all.filter((j) => j.employer_id === employerId));
+      } catch {
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [employerId]);
@@ -440,9 +508,14 @@ export function useApplications() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getApplications());
-      setLoading(false);
+      try {
+        setData(await jobApplicationService.getAll());
+      } catch (error) {
+        console.error('Failed to fetch applications:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
@@ -457,17 +530,59 @@ export function useCandidateApplications(candidateId: string | undefined) {
   useEffect(() => {
     if (!candidateId) {
       setLoading(false);
+      setData([]);
       return;
     }
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getApplicationsByCandidate(candidateId));
-      setLoading(false);
+      try {
+        if (isUuid(candidateId)) {
+          setData(await jobApplicationService.getByCandidateId(candidateId));
+        } else {
+          setData([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch candidate applications:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [candidateId]);
+
+  return { applications: data, loading };
+}
+
+export function useUserApplications(userId: string | undefined) {
+  const [data, setData] = useState<JobApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      setData([]);
+      return;
+    }
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        if (isUuid(userId)) {
+          setData(await jobApplicationService.getByUserId(userId));
+        } else {
+          setData([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user applications:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [userId]);
 
   return { applications: data, loading };
 }
@@ -484,9 +599,14 @@ export function useJobApplications(jobId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getApplicationsByJob(jobId));
-      setLoading(false);
+      try {
+        const all = await jobApplicationService.getAll();
+        setData(all.filter((a) => a.job_id === jobId));
+      } catch (error) {
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [jobId]);
@@ -498,49 +618,67 @@ export function useEmployerApplications(employerId: string | undefined) {
   const [data, setData] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!employerId) {
+      setData([]);
       setLoading(false);
       return;
     }
-
-    const fetchData = async () => {
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getApplicationsByEmployer(employerId));
+    setLoading(true);
+    try {
+      if (isUuid(employerId)) {
+        setData(await jobApplicationService.getByEmployerId(employerId));
+      } else {
+        setData([]);
+      }
+    } catch {
+      setData([]);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+    }
+  };
+
+  useEffect(() => {
+    void fetchData();
   }, [employerId]);
 
-  return { applications: data, loading };
+  return { applications: data, loading, refresh: fetchData };
 }
 
 // =====================================================
 // ASSESSMENTS & CERTIFICATES HOOKS
 // =====================================================
 
-export function useAssessments() {
+export function useAssessments(options?: { candidateVisibleOnly?: boolean }) {
+  const candidateVisibleOnly = options?.candidateVisibleOnly !== false;
   const [data, setData] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await assessmentService.getAssessments();
+      setData(
+        candidateVisibleOnly
+          ? result.filter(isCandidateVisibleAssessment)
+          : result
+      );
+    } catch (err) {
+      console.error('Failed to fetch assessments:', err);
+      setData([]);
+      setError(err instanceof Error ? err.message : 'Failed to load assessments');
+    } finally {
+      setLoading(false);
+    }
+  }, [candidateVisibleOnly]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const result = await assessmentService.getAssessments();
-        setData(result);
-      } catch (error) {
-        console.error('Failed to fetch assessments:', error);
-        setData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [fetchData]);
 
-  return { assessments: data, loading };
+  return { assessments: data, loading, error, refresh: fetchData };
 }
 
 export function useAssessment(id: string | undefined) {
@@ -571,21 +709,85 @@ export function useAssessment(id: string | undefined) {
   return { assessment, loading };
 }
 
-export function useCertificates() {
+export function useCertificates(userId: string | undefined) {
   const [data, setData] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getCertificates());
-      setLoading(false);
+      if (!userId) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      try {
+        if (isUuid(userId)) {
+          const byUser = await certificateService.getByUserId(userId);
+          if (byUser.length > 0) {
+            setData(byUser);
+            return;
+          }
+          const candidate = await candidateService.getCandidateByUserId(userId, {
+            ensure: true,
+          });
+          if (candidate?.id && isUuid(candidate.id)) {
+            setData(await certificateService.getByCandidateId(candidate.id));
+            return;
+          }
+        }
+        setData([]);
+      } catch (error) {
+        console.error('Failed to fetch certificates:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
-  }, []);
+  }, [userId]);
 
   return { certificates: data, loading };
+}
+
+export interface UserAssessmentActivity {
+  apiRecords: BackendUserAssessment[];
+  localRecords: StoredUserAssessment[];
+  loading: boolean;
+}
+
+export function useUserAssessmentActivity(
+  userId: string | undefined,
+  refreshKey = 0
+) {
+  const [apiRecords, setApiRecords] = useState<BackendUserAssessment[]>([]);
+  const [localRecords, setLocalRecords] = useState<StoredUserAssessment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const local = userId ? loadUserAssessments(userId) : [];
+      setLocalRecords(local);
+
+      const backendId = userId && isUuid(userId) ? userId : null;
+      if (backendId) {
+        try {
+          const rows = await userAssessmentService.getByUserId(backendId);
+          setApiRecords(rows.filter((r) => r.isactive !== false));
+        } catch (error) {
+          console.error('Failed to fetch user assessments:', error);
+          setApiRecords([]);
+        }
+      } else {
+        setApiRecords([]);
+      }
+      setLoading(false);
+    };
+    void load();
+  }, [userId, refreshKey]);
+
+  return { apiRecords, localRecords, loading };
 }
 
 export function useCandidateCertificates(candidateId: string | undefined) {
@@ -600,9 +802,17 @@ export function useCandidateCertificates(candidateId: string | undefined) {
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setData(LocalDatabase.getCertificatesByCandidate(candidateId));
-      setLoading(false);
+      try {
+        if (isUuid(candidateId)) {
+          setData(await certificateService.getByCandidateId(candidateId));
+        } else {
+          setData([]);
+        }
+      } catch {
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [candidateId]);
@@ -622,17 +832,29 @@ export function useNotifications(userId: string | undefined) {
   useEffect(() => {
     if (!userId) {
       setLoading(false);
+      setData([]);
+      setUnreadCount(0);
       return;
     }
 
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const all = LocalDatabase.getNotificationsByUser(userId);
-      const unread = LocalDatabase.getUnreadNotifications(userId);
-      setData(all);
-      setUnreadCount(unread.length);
-      setLoading(false);
+      try {
+        if (isUuid(userId)) {
+          const all = await notificationService.getByUserId(userId);
+          setData(all);
+          setUnreadCount(all.filter((n) => !n.is_read).length);
+        } else {
+          setData([]);
+          setUnreadCount(0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+        setData([]);
+        setUnreadCount(0);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [userId]);
@@ -651,14 +873,69 @@ export function useAdminUsers() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getAdminUsers());
-      setLoading(false);
+      try {
+        const rows = await adminUserService.getAll();
+        setData(rows);
+      } catch (error) {
+        console.error('Failed to fetch admin users:', error);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
 
   return { adminUsers: data, loading };
+}
+
+export function useSavedCandidates(employerId: string | undefined) {
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  const refresh = async () => {
+    if (!employerId) {
+      setSavedIds(new Set());
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const rows = await savedCandidateService.getByEmployerId(employerId);
+      setSavedIds(new Set(rows.filter((r) => r.is_active !== false).map((r) => r.candidate_id)));
+    } catch {
+      setSavedIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+  }, [employerId]);
+
+  const toggleSave = async (candidateId: string, userId?: string) => {
+    if (!employerId) return;
+    const isSaved = savedIds.has(candidateId);
+    if (isSaved) {
+      await savedCandidateService.unsave(employerId, candidateId);
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(candidateId);
+        return next;
+      });
+    } else {
+      await savedCandidateService.save({
+        employerid: employerId,
+        candidateid: candidateId,
+        savedby: userId,
+        folder: 'Shortlist',
+      });
+      setSavedIds((prev) => new Set(prev).add(candidateId));
+    }
+  };
+
+  return { savedIds, loading, toggleSave, refresh };
 }
 
 // =====================================================
@@ -673,7 +950,7 @@ export function useSkillsMaster() {
     const fetchData = async () => {
       setLoading(true);
       await new Promise(resolve => setTimeout(resolve, 100));
-      setData(LocalDatabase.getSkillsMaster());
+      setData([]);
       setLoading(false);
     };
     fetchData();
@@ -686,16 +963,98 @@ export function useSkillsMaster() {
 // DASHBOARD STATS HOOK
 // =====================================================
 
+export type DashboardStats = {
+  totalCandidates: number;
+  approvedCandidates: number;
+  pendingCandidates: number;
+  totalEmployers: number;
+  activeEmployers: number;
+  totalJobs: number;
+  activeJobs: number;
+  totalApplications: number;
+  totalAssessments: number;
+  totalCertificates: number;
+  totalAdmins: number;
+  avgCertificateScore?: number;
+};
+
 export function useDashboardStats() {
-  const [stats, setStats] = useState<ReturnType<typeof LocalDatabase.getStats> | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setStats(LocalDatabase.getStats());
-      setLoading(false);
+      try {
+        const [candidateList, employerList, jobList, assessmentList, applications] =
+          await Promise.all([
+            candidateService.getCandidates(),
+            employerService.getEmployers(),
+            jobService.getJobs(),
+            assessmentService.getAssessments(),
+            jobApplicationService.getAll().catch(() => []),
+          ]);
+
+        let totalCertificates = 0;
+        let scoreSum = 0;
+        let scoreCount = 0;
+        await Promise.all(
+          candidateList.slice(0, 50).map(async (c) => {
+            try {
+              const certs = await certificateService.getByCandidateId(c.id);
+              totalCertificates += certs.length;
+              for (const cert of certs) {
+                if (cert.score != null) {
+                  scoreSum += cert.score;
+                  scoreCount += 1;
+                }
+              }
+            } catch {
+              /* skip */
+            }
+          })
+        );
+
+        let totalAdmins = 0;
+        try {
+          const admins = await adminUserService.getAll();
+          totalAdmins = admins.length;
+        } catch {
+          totalAdmins = 0;
+        }
+
+        setStats({
+          totalCandidates: candidateList.length,
+          approvedCandidates: candidateList.filter((c) => c.status === 'approved').length,
+          pendingCandidates: candidateList.filter((c) => c.status === 'pending').length,
+          totalEmployers: employerList.length,
+          activeEmployers: employerList.filter((e) => e.status === 'active').length,
+          totalJobs: jobList.length,
+          activeJobs: jobList.filter((j) => j.status === 'active').length,
+          totalApplications: applications.length,
+          totalAssessments: assessmentList.length,
+          totalCertificates,
+          totalAdmins,
+          avgCertificateScore: scoreCount > 0 ? Math.round(scoreSum / scoreCount) : undefined,
+        });
+      } catch (error) {
+        console.error('Failed to load dashboard stats:', error);
+        setStats({
+          totalCandidates: 0,
+          approvedCandidates: 0,
+          pendingCandidates: 0,
+          totalEmployers: 0,
+          activeEmployers: 0,
+          totalJobs: 0,
+          activeJobs: 0,
+          totalApplications: 0,
+          totalAssessments: 0,
+          totalCertificates: 0,
+          totalAdmins: 0,
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
@@ -722,20 +1081,21 @@ export function useCandidateSearch(searchParams: {
   useEffect(() => {
     const search = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      let filtered = [...candidates];
+      let filtered: Candidate[] = [];
+      try {
+        filtered = await candidateService.getCandidates();
+      } catch {
+        setResults([]);
+        setLoading(false);
+        return;
+      }
 
       if (searchParams.query) {
         const q = searchParams.query.toLowerCase();
-        filtered = filtered.filter(c => {
-          const user = users.find(u => u.id === c.user_id);
-          return (
-            (c.headline?.toLowerCase().includes(q) ?? false) ||
-            (c.summary?.toLowerCase().includes(q) ?? false) ||
-            (user?.name.toLowerCase().includes(q) ?? false)
-          );
-        });
+        filtered = filtered.filter(c =>
+          (c.headline?.toLowerCase().includes(q) ?? false) ||
+          (c.summary?.toLowerCase().includes(q) ?? false)
+        );
       }
 
       if (searchParams.location) {
@@ -806,9 +1166,14 @@ export function useJobSearch(searchParams: {
   useEffect(() => {
     const search = async () => {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      let filtered = [...jobs].filter(j => j.status === 'active');
+      let filtered: Job[] = [];
+      try {
+        filtered = (await jobService.getJobs()).filter(j => j.status === 'active');
+      } catch {
+        setResults([]);
+        setLoading(false);
+        return;
+      }
 
       if (searchParams.query) {
         const q = searchParams.query.toLowerCase();

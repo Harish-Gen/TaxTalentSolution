@@ -51,6 +51,7 @@ export {
   // Application hooks
   useApplications,
   useCandidateApplications,
+  useUserApplications,
   useJobApplications,
   useEmployerApplications,
   
@@ -58,6 +59,7 @@ export {
   useAssessments,
   useAssessment,
   useCertificates,
+  useUserAssessmentActivity,
   useCandidateCertificates,
   
   // Notification hooks
@@ -65,6 +67,7 @@ export {
   
   // Admin hooks
   useAdminUsers,
+  useSavedCandidates,
   
   // Skills hooks
   useSkillsMaster,

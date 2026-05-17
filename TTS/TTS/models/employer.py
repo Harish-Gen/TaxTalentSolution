@@ -9,13 +9,18 @@ class EmployerCreateUpdate(BaseModel):
     id: Optional[UUID] = None
     userid: Optional[UUID] = None
     name: Optional[str] = None
+    companyname: Optional[str] = None
     contactperson: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     location: Optional[str] = None
+    headquarterscity: Optional[str] = None
+    headquartersstate: Optional[str] = None
+    headquarterscountry: Optional[str] = None
     industry: Optional[str] = None
     companysize: Optional[str] = None
     website: Optional[str] = None
+    status: Optional[str] = None
     isactive: Optional[bool] = None
 
 class EmployerResponse(EmployerCreateUpdate):

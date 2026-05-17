@@ -20,9 +20,22 @@ import {
   Eye,
   Loader2
 } from "lucide-react";
-import { useAssessments, useCertificates } from "../../database";
+import { useAssessments, useCertificates, useUserAssessmentActivity } from "../../database";
 import { getSubscription } from "../../database/userStore";
+import {
+  markAssessmentInProgress,
+  markAssessmentCompleted,
+} from "../../database/assessmentUserStore";
+import { userAssessmentService, isUuid } from "../../api/userAssessmentService";
+import {
+  questionService,
+  mapFrontendQuestionsToExam,
+  type ExamQuestion,
+} from "../../api/questionService";
+import { certificateService } from "../../api/certificateService";
+import { candidateService } from "../../api/candidateService";
 import type { CandidatePlan } from "../../database/types";
+import { toast } from "sonner";
 
 interface AssessmentCertificatesProps {
   user?: any;
@@ -30,15 +43,27 @@ interface AssessmentCertificatesProps {
 
 export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   const [activeTab, setActiveTab] = useState("available");
-  const [currentAssessment, setCurrentAssessment] = useState<string | null>(null);
+  const [currentAssessmentId, setCurrentAssessmentId] = useState<string | null>(null);
   const [showCertificate, setShowCertificate] = useState<string | null>(null);
   const [plan, setPlan] = useState<CandidatePlan>("free");
-  
-  // Fetch from database
-  const { assessments: dbAssessments, loading: assessmentsLoading } = useAssessments();
-  const { certificates: dbCertificates, loading: certificatesLoading } = useCertificates();
-  
-  const loading = assessmentsLoading || certificatesLoading;
+  const [activityRefresh, setActivityRefresh] = useState(0);
+  const [examQuestions, setExamQuestions] = useState<ExamQuestion[] | null>(null);
+  const [startingAssessment, setStartingAssessment] = useState(false);
+
+  const userId = user?.id as string | undefined;
+  const {
+    assessments: dbAssessments,
+    loading: assessmentsLoading,
+    error: assessmentsError,
+    refresh: refreshAssessments,
+  } = useAssessments();
+  const { certificates: dbCertificates, loading: certificatesLoading } = useCertificates(userId);
+  const { apiRecords, localRecords, loading: activityLoading } = useUserAssessmentActivity(
+    userId,
+    activityRefresh
+  );
+
+  const loading = assessmentsLoading || certificatesLoading || activityLoading;
 
   useEffect(() => {
     if (user?.id) {
@@ -47,22 +72,31 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     }
   }, [user?.id]);
 
-  // Transform database data
+  useEffect(() => {
+    if (activeTab === "available") {
+      void refreshAssessments();
+    }
+  }, [activeTab, refreshAssessments]);
+
+  const formatDifficulty = (d?: string) => {
+    const v = (d || "intermediate").toLowerCase();
+    if (v === "beginner") return "Beginner";
+    if (v === "advanced" || v === "expert") return "Advanced";
+    return "Intermediate";
+  };
+
   const availableAssessments = useMemo(() => {
-    return dbAssessments.map(a => ({
-      id: parseInt(a.id.split('-').pop() || '0'),
+    return dbAssessments.map((a) => ({
+      id: a.id,
       title: a.title,
-      description: a.description || '',
+      description: a.description || a.category || "",
       duration: `${a.duration_minutes || 45} minutes`,
-      questions: a.question_count || 50,
-      difficulty: a.difficulty === 'beginner' ? 'Beginner' : 
-                  a.difficulty === 'intermediate' ? 'Intermediate' : 
-                  a.difficulty === 'advanced' ? 'Advanced' : 'Intermediate',
-      price: `₹${a.price || 299}`,
+      questions: a.question_count || 0,
+      difficulty: formatDifficulty(a.difficulty),
       priceNum: a.price || 299,
-      skills: a.skills_validated || [],
-      rating: a.rating || 4.5,
-      completedBy: a.total_attempts || 0
+      skills: a.skills_validated?.length ? a.skills_validated : a.category ? [a.category] : [],
+      rating: a.rating || 0,
+      completedBy: a.total_attempts || 0,
     }));
   }, [dbAssessments]);
 
@@ -96,29 +130,165 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   };
   
   const earnedCertificates = useMemo(() => {
-    return dbCertificates.map(c => ({
-      id: parseInt(c.id.split('-').pop() || '0'),
-      title: c.title,
-      issueDate: c.issue_date ? new Date(c.issue_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
-      score: c.score || 0,
-      validUntil: c.expiry_date ? new Date(c.expiry_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
-      credentialId: c.credential_id || '',
-      level: c.level === 'expert' ? 'Expert' : 
-             c.level === 'specialist' ? 'Specialist' : 'Professional',
-      skillsValidated: c.skills_validated || []
-    }));
-  }, [dbCertificates]);
+    type CertRow = {
+      id: string;
+      assessmentId?: string;
+      title: string;
+      description?: string;
+      issueDate: string;
+      score: number;
+      validUntil: string;
+      credentialId: string;
+      level: string;
+      skillsValidated: string[];
+    };
 
-  const inProgressAssessments = [
-    {
-      id: 1,
-      title: "1065 Partnership Returns",
-      progress: 60,
-      timeLeft: "25 minutes",
-      questionsAnswered: 30,
-      totalQuestions: 75
+    const rows: CertRow[] = dbCertificates.map((c) => ({
+      id: c.id,
+      assessmentId: c.assessment_id,
+      title: c.title,
+      issueDate: c.issue_date
+        ? new Date(c.issue_date).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })
+        : "",
+      score: c.score || 0,
+      validUntil: c.expiry_date
+        ? new Date(c.expiry_date).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })
+        : "",
+      credentialId: c.credential_id || "",
+      level:
+        c.level === "expert"
+          ? "Expert"
+          : c.level === "specialist"
+            ? "Specialist"
+            : "Professional",
+      skillsValidated: c.skills_validated || [],
+    }));
+
+    for (const local of localRecords.filter((r) => r.status === "completed")) {
+      if (rows.some((r) => r.assessmentId === local.assessmentId)) continue;
+      const expiry = new Date();
+      expiry.setFullYear(expiry.getFullYear() + 2);
+      rows.push({
+        id: `local-${local.assessmentId}`,
+        assessmentId: local.assessmentId,
+        title: local.title,
+        issueDate: local.completedAt
+          ? new Date(local.completedAt).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "",
+        score: local.score ?? 0,
+        validUntil: expiry.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+        credentialId: local.credentialId || "",
+        level: (local.score ?? 0) >= 85 ? "Expert" : "Professional",
+        skillsValidated: [],
+      });
     }
-  ];
+
+    for (const api of apiRecords.filter((r) =>
+      (r.status || "").toLowerCase() === "completed"
+    )) {
+      if (rows.some((r) => r.assessmentId === api.assessmentid)) continue;
+      const meta = dbAssessments.find((a) => a.id === api.assessmentid);
+      rows.push({
+        id: api.id,
+        assessmentId: api.assessmentid,
+        title: meta?.title || "Assessment",
+        issueDate: api.completedon
+          ? new Date(api.completedon).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "",
+        score: 0,
+        validUntil: "",
+        credentialId: api.id.slice(0, 8).toUpperCase(),
+        level: "Professional",
+        skillsValidated: meta?.skills_validated || [],
+      });
+    }
+
+    return rows;
+  }, [dbCertificates, localRecords, apiRecords, dbAssessments]);
+
+  const inProgressAssessments = useMemo(() => {
+    const rows: Array<{
+      id: string;
+      assessmentId: string;
+      title: string;
+      progress: number;
+      timeLeft: string;
+      questionsAnswered: number;
+      totalQuestions: number;
+    }> = [];
+
+    for (const local of localRecords.filter((r) => r.status === "in_progress")) {
+      rows.push({
+        id: local.assessmentId,
+        assessmentId: local.assessmentId,
+        title: local.title,
+        progress: local.progress,
+        timeLeft: local.timeLeftMinutes
+          ? `${local.timeLeftMinutes} minutes`
+          : "—",
+        questionsAnswered: local.questionsAnswered ?? 0,
+        totalQuestions: local.totalQuestions ?? 0,
+      });
+    }
+
+    for (const api of apiRecords) {
+      const status = (api.status || "").toLowerCase();
+      if (status === "completed") continue;
+      if (rows.some((r) => r.assessmentId === api.assessmentid)) continue;
+      const meta = dbAssessments.find((a) => a.id === api.assessmentid);
+      rows.push({
+        id: api.id,
+        assessmentId: api.assessmentid,
+        title: meta?.title || "Assessment",
+        progress: 0,
+        timeLeft: meta?.duration_minutes ? `${meta.duration_minutes} minutes` : "—",
+        questionsAnswered: 0,
+        totalQuestions: meta?.question_count ?? 0,
+      });
+    }
+
+    return rows;
+  }, [localRecords, apiRecords, dbAssessments]);
+
+  const stats = useMemo(() => {
+    const scores = earnedCertificates.map((c) => c.score).filter((s) => s > 0);
+    return {
+      certificatesEarned: earnedCertificates.length,
+      averageScore: scores.length
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0,
+      inProgressCount: inProgressAssessments.length,
+    };
+  }, [earnedCertificates, inProgressAssessments]);
+
+  const is1040Assessment = (title: string) => /1040/i.test(title);
+  const is1040Certificate = (cert: { title: string; assessmentId?: string }) =>
+    is1040Assessment(cert.title) ||
+    (cert.assessmentId
+      ? is1040Assessment(
+          dbAssessments.find((a) => a.id === cert.assessmentId)?.title || ""
+        )
+      : false);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -138,17 +308,97 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     }
   };
 
-  const handleStartAssessment = (assessmentId: number) => {
-    if (assessmentId === 1) {
-      setCurrentAssessment("1040");
-    } else {
-      // Handle other assessments
-      alert("This assessment will be available soon!");
+  const handleStartAssessment = async (assessment: (typeof availableAssessments)[0]) => {
+    setStartingAssessment(true);
+    try {
+      const apiQuestions = await questionService.getQuestionsByAssessment(assessment.id);
+      const mapped = mapFrontendQuestionsToExam(apiQuestions);
+      setExamQuestions(mapped.length > 0 ? mapped : null);
+      if (mapped.length === 0) {
+        toast.info("No questions linked yet — using sample questions for this session.");
+      }
+    } catch (error) {
+      console.error("Failed to load assessment questions:", error);
+      setExamQuestions(null);
+      toast.error("Could not load questions; using sample questions.");
+    } finally {
+      setStartingAssessment(false);
     }
+
+    if (userId) {
+      markAssessmentInProgress(
+        userId,
+        assessment.id,
+        assessment.title,
+        assessment.questions || 50
+      );
+      if (isUuid(userId) && isUuid(assessment.id)) {
+        try {
+          await userAssessmentService.upsert({
+            userid: userId,
+            assessmentid: assessment.id,
+            status: "in_progress",
+            startedon: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error("Failed to save assessment start:", error);
+        }
+      }
+      setActivityRefresh((n) => n + 1);
+    }
+    setCurrentAssessmentId(assessment.id);
   };
 
   const handleBackToAssessments = () => {
-    setCurrentAssessment(null);
+    setCurrentAssessmentId(null);
+    setExamQuestions(null);
+    setActivityRefresh((n) => n + 1);
+  };
+
+  const handleAssessmentComplete = async (score: number) => {
+    const active = availableAssessments.find((a) => a.id === currentAssessmentId);
+    if (userId && active) {
+      markAssessmentCompleted(
+        userId,
+        active.id,
+        active.title,
+        score,
+        active.questions || 50
+      );
+      if (isUuid(userId) && isUuid(active.id)) {
+        try {
+          await userAssessmentService.upsert({
+            userid: userId,
+            assessmentid: active.id,
+            status: "completed",
+            completedon: new Date().toISOString(),
+            score,
+          });
+          const candidate = await candidateService.getCandidateByUserId(userId, {
+            ensure: true,
+          });
+          if (candidate?.id) {
+            const expiry = new Date();
+            expiry.setFullYear(expiry.getFullYear() + 2);
+            await certificateService.create({
+              candidateid: candidate.id,
+              userid: userId,
+              assessmentid: active.id,
+              credentialid: `TT-${active.id.slice(0, 8).toUpperCase()}-${Date.now()}`,
+              title: active.title,
+              score: Math.round(score),
+              level: score >= 90 ? "expert" : score >= 75 ? "specialist" : "professional",
+              issuedate: new Date().toISOString().slice(0, 10),
+              expirydate: expiry.toISOString().slice(0, 10),
+              skillsvalidated: active.skills?.length ? active.skills : [active.description],
+            });
+          }
+        } catch (error) {
+          console.error("Failed to persist assessment completion:", error);
+        }
+      }
+    }
+    setActivityRefresh((n) => n + 1);
   };
 
   const handleShowCertificate = (certificateId: string) => {
@@ -168,8 +418,27 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     );
   }
 
-  if (currentAssessment === "1040") {
-    return <Assessment1040 onBack={handleBackToAssessments} />;
+  if (startingAssessment) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Preparing assessment...</span>
+      </div>
+    );
+  }
+
+  if (currentAssessmentId) {
+    const active = availableAssessments.find((a) => a.id === currentAssessmentId);
+    const durationMinutes = dbAssessments.find((a) => a.id === currentAssessmentId)?.duration_minutes;
+    return (
+      <Assessment1040
+        onBack={handleBackToAssessments}
+        onComplete={handleAssessmentComplete}
+        assessmentTitle={active?.title}
+        examQuestions={examQuestions ?? undefined}
+        durationMinutes={durationMinutes || undefined}
+      />
+    );
   }
 
   if (showCertificate === "1040") {
@@ -196,29 +465,29 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
         <Card>
           <CardContent className="p-4 text-center">
             <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{stats.certificatesEarned}</div>
             <div className="text-sm text-muted-foreground">Certificates Earned</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <Target className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">89.0%</div>
+            <div className="text-2xl font-bold">{stats.averageScore > 0 ? `${stats.averageScore}%` : "—"}</div>
             <div className="text-sm text-muted-foreground">Average Score</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <BookOpen className="w-8 h-8 text-green-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">{stats.inProgressCount}</div>
             <div className="text-sm text-muted-foreground">In Progress</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <Star className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">Top 5%</div>
-            <div className="text-sm text-muted-foreground">Global Ranking</div>
+            <div className="text-2xl font-bold">{availableAssessments.length}</div>
+            <div className="text-sm text-muted-foreground">Available</div>
           </CardContent>
         </Card>
       </div>
@@ -233,6 +502,26 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
 
         {/* Available Assessments */}
         <TabsContent value="available" className="space-y-4">
+          {availableAssessments.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No assessments available</h3>
+                <p className="text-muted-foreground">
+                  {assessmentsLoading
+                    ? "Loading assessments…"
+                    : assessmentsError
+                      ? `Could not load assessments: ${assessmentsError}. Is the API running at ${import.meta.env.VITE_API_URL || "VITE_API_URL"}?`
+                      : "No assessments in the catalog. Run migrations (012 seed) or create assessments in Admin and set status to Active."}
+                </p>
+                {assessmentsError && (
+                  <Button variant="outline" size="sm" className="mt-4" onClick={() => refreshAssessments()}>
+                    Retry
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
           <div className="grid gap-4">
             {availableAssessments.map((assessment) => (
               <Card key={assessment.id} className="hover:shadow-md transition-shadow">
@@ -281,7 +570,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                       {renderPrice(assessment.priceNum)}
                       <Button 
                         className="w-full lg:w-auto"
-                        onClick={() => handleStartAssessment(assessment.id)}
+                        onClick={() => handleStartAssessment(assessment)}
                       >
                         <Play className="w-4 h-4 mr-2" />
                         Start Assessment
@@ -292,15 +581,16 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
               </Card>
             ))}
           </div>
+          )}
         </TabsContent>
 
         {/* My Certificates */}
         <TabsContent value="certificates" className="space-y-4">
           <div className="grid gap-4">
             {earnedCertificates.map((cert) => (
-              <Card key={cert.id} className={`${cert.id === 1 ? 'border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50' : 'border-l-4 border-l-green-500'}`}>
+              <Card key={cert.id} className={`${is1040Certificate(cert) ? 'border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50' : 'border-l-4 border-l-green-500'}`}>
                 <CardContent className="p-6">
-                  {cert.id === 1 ? (
+                  {is1040Certificate(cert) ? (
                     // Special design for 1040 Certificate
                     <div className="space-y-6">
                       {/* Certificate Header */}
@@ -449,7 +739,14 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                         <Button variant="outline">
                           Save & Exit
                         </Button>
-                        <Button>
+                        <Button
+                          onClick={() => {
+                            const meta = availableAssessments.find(
+                              (a) => a.id === assessment.assessmentId
+                            );
+                            if (meta) handleStartAssessment(meta);
+                          }}
+                        >
                           <Play className="w-4 h-4 mr-2" />
                           Continue
                         </Button>

@@ -28,8 +28,9 @@ import {
   Mail,
   Phone
 } from "lucide-react";
-import { useCandidates, useCandidateCertificates, candidateSkills } from "../../database";
+import { useCandidates, useSavedCandidates } from "../../database";
 import { candidateService } from "../../api/candidateService";
+import { profileViewService } from "../../api/profileViewService";
 
 interface Candidate {
   id: string;
@@ -48,10 +49,12 @@ interface Candidate {
 }
 
 interface TalentSearchProps {
-  onViewProfile: (candidateId: number) => void;
+  onViewProfile: (candidateId: string) => void;
+  employerId?: string;
+  userId?: string;
 }
 
-export function TalentSearch({ onViewProfile }: TalentSearchProps) {
+export function TalentSearch({ onViewProfile, employerId, userId }: TalentSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [experienceRange, setExperienceRange] = useState([0, 15]);
   const [minScore, setMinScore] = useState([0]);
@@ -77,37 +80,54 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
   
   // Fetch from local database
   const { candidates: dbCandidates, loading: candidatesLoading } = useCandidates();
-  
+  const { savedIds, toggleSave } = useSavedCandidates(employerId);
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+
   const loading = candidatesLoading;
+
+  useEffect(() => {
+    const ids = dbCandidates.map((c) => c.id).filter(Boolean);
+    if (ids.length === 0) {
+      setViewCounts({});
+      return;
+    }
+    profileViewService
+      .getCounts(ids)
+      .then(setViewCounts)
+      .catch(() => setViewCounts({}));
+  }, [dbCandidates]);
   
   // Transform database candidates to component format
   const mappedCandidates: Candidate[] = useMemo(() => {
     return dbCandidates
-      .map(candidate => {
-        const candidateData = candidate as any;
-        const skills = candidateSkills
-          .filter(s => s.candidate_id === candidate.id)
-          .map(s => s.skill_name);
-        
+      .filter((c) => c.status === "approved" || c.status === "pending")
+      .map((candidate) => {
+        const candidateData = candidate as {
+          name?: string;
+          tax_expertise?: string[];
+        };
+        const skills = candidateData.tax_expertise || [];
+
         return {
           id: candidate.id,
-          name: candidateData.name || 'Unknown',
-          title: candidate.headline || 'Tax Professional',
-          location: `${candidate.location_city || ''}${candidate.location_state ? `, ${candidate.location_state}` : ''}`.trim() || 'Remote',
+          name: candidateData.name || candidate.headline || "Candidate",
+          title: candidate.headline || "Tax Professional",
+          location: `${candidate.location_city || ""}${candidate.location_state ? `, ${candidate.location_state}` : ""}`.trim() || "Remote",
           experience: candidate.experience_years || 0,
-          skills: skills.length > 0 ? skills : candidateData.taxexpertise || [],
+          skills,
           assessmentScore: Math.round((candidate.rating || 0) * 20), // Convert 5-star to 100 scale
           availability: candidate.availability === 'immediate' ? 'Immediate' : 
                        candidate.availability === '2_weeks' ? '2 weeks' : 
                        candidate.availability === '1_month' ? '1 month' : 'Immediate',
           hourlyRate: candidate.hourly_rate || 2000,
           rating: candidate.rating || 0,
-          profileViews: candidate.profile_views || 0,
+          profileViews: viewCounts[candidate.id] ?? candidate.profile_views ?? 0,
           certifications: [], // Will be populated from certificates
           summary: candidate.summary || ''
         };
       });
-  }, [dbCandidates]);
+  }, [dbCandidates, viewCounts]);
 
   const allSkills = [
     "Form 1040",
@@ -356,13 +376,29 @@ export function TalentSearch({ onViewProfile }: TalentSearchProps) {
 
                       {/* Actions */}
                       <div className="ml-6 flex flex-col space-y-2">
-                        <Button onClick={() => setSelectedProfileId(candidate.id)}>
+                        <Button onClick={() => onViewProfile(candidate.id)}>
                           <Eye className="w-4 h-4 mr-2" />
-                          View Profile
+                          Full profile
                         </Button>
-                        <Button variant="outline">
+                        <Button variant="secondary" onClick={() => setSelectedProfileId(candidate.id)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Quick view
+                        </Button>
+                        <Button
+                          variant={savedIds.has(candidate.id) ? "default" : "outline"}
+                          disabled={!employerId || savingId === candidate.id}
+                          onClick={async () => {
+                            if (!employerId) return;
+                            setSavingId(candidate.id);
+                            try {
+                              await toggleSave(candidate.id, userId);
+                            } finally {
+                              setSavingId(null);
+                            }
+                          }}
+                        >
                           <UserPlus className="w-4 h-4 mr-2" />
-                          Shortlist
+                          {savedIds.has(candidate.id) ? "Shortlisted" : "Shortlist"}
                         </Button>
                       </div>
                     </div>

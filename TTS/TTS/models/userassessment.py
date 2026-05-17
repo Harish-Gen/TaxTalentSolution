@@ -10,6 +10,7 @@ class UserAssessmentCreateUpdate(BaseModel):
     status: Optional[str] = "pending"
     startedon: Optional[datetime] = None
     completedon: Optional[datetime] = None
+    score: Optional[float] = None
     isactive: Optional[bool] = None
 
 class UserAssessmentResponse(UserAssessmentCreateUpdate):

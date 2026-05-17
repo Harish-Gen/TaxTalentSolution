@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from interfaces.icandidate_repository import ICandidateRepository
 from repository.candidate_repository import CandidateRepository
@@ -23,6 +23,26 @@ def get_all_candidates(repo: ICandidateRepository = Depends(get_candidate_reposi
         return repo.get_all_candidates()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/user/{user_id}", response_model=Optional[CandidateResponse])
+def get_candidate_by_user(
+    user_id: UUID,
+    ensure: bool = False,
+    repo: ICandidateRepository = Depends(get_candidate_repository),
+):
+    """
+    Return the candidate profile for a user.
+    Pass ensure=true to create a pending candidate row when missing.
+    """
+    try:
+        if ensure:
+            return repo.ensure_candidate_for_user(user_id)
+        return repo.get_candidate_by_user_id(user_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve)) from ve
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)
 def get_candidate(candidate_id: UUID, repo: ICandidateRepository = Depends(get_candidate_repository)):

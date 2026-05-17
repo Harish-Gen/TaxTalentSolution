@@ -21,8 +21,13 @@ import {
 import { useJobs, useEmployers } from "../../database";
 
 interface JobsProps {
-  onJobApplication?: (jobTitle: string, companyName: string) => void;
-  onViewDetails?: (jobId: number) => void;
+  onJobApplication?: (
+    jobTitle: string,
+    companyName: string,
+    jobPostingId: string,
+    employerId: string
+  ) => void;
+  onViewDetails?: (jobId: string) => void;
 }
 
 export function Jobs({ onJobApplication, onViewDetails }: JobsProps) {
@@ -48,6 +53,7 @@ export function Jobs({ onJobApplication, onViewDetails }: JobsProps) {
       
       return {
         id: job.id,
+        employerId: job.employer_id,
         title: job.title,
         company: employer?.company_name || 'Unknown Company',
         location: `${job.location_city || ''}, ${job.location_state || ''}`,
@@ -132,7 +138,9 @@ export function Jobs({ onJobApplication, onViewDetails }: JobsProps) {
                 <div className="flex flex-col gap-2">
                   <Button 
                     size="sm"
-                    onClick={() => onJobApplication?.(job.title, job.company)}
+                    onClick={() =>
+                      onJobApplication?.(job.title, job.company, job.id, job.employerId)
+                    }
                   >
                     Apply Now
                   </Button>

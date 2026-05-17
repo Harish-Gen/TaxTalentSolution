@@ -13,5 +13,13 @@ class ICandidateRepository(ABC):
         pass
 
     @abstractmethod
+    def get_candidate_by_user_id(self, userid: UUID) -> Optional[CandidateResponse]:
+        pass
+
+    @abstractmethod
+    def ensure_candidate_for_user(self, userid: UUID) -> CandidateResponse:
+        pass
+
+    @abstractmethod
     def upsert_candidate(self, candidate: CandidateCreateUpdate) -> CandidateResponse:
         pass

@@ -1677,6 +1677,7 @@ export class LocalDatabase {
     hourlyRate: number;
     expectedSalaryMin: number;
     expectedSalaryMax: number;
+    resumeUrl?: string;
   }): { userId: string; candidateId: string } {
     if (!form.email) throw new Error('Email is required');
     if (users.find((u) => u.email === form.email)) {
@@ -1715,6 +1716,7 @@ export class LocalDatabase {
       expected_salary_max: form.expectedSalaryMax || undefined,
       hourly_rate: form.hourlyRate || undefined,
       linkedin_url: form.linkedinUrl || undefined,
+      resume_url: form.resumeUrl || undefined,
       profile_completeness: 50,
       status: 'pending',
       is_featured: false,

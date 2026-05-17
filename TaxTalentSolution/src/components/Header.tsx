@@ -4,10 +4,12 @@ import { assetUrl } from "../utils/appPaths";
 
 interface HeaderProps {
   onLoginClick: () => void;
+  onGetStartedClick?: () => void;
   onAboutClick?: () => void;
 }
 
-export function Header({ onLoginClick, onAboutClick }: HeaderProps) {
+export function Header({ onLoginClick, onGetStartedClick, onAboutClick }: HeaderProps) {
+  const handleGetStarted = onGetStartedClick ?? onLoginClick;
   return (
     <header className="bg-white border-b border-border sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -48,7 +50,7 @@ export function Header({ onLoginClick, onAboutClick }: HeaderProps) {
               <User className="w-4 h-4 mr-2" />
               Login
             </Button>
-            <Button onClick={onLoginClick}>
+            <Button onClick={handleGetStarted}>
               Get Started
             </Button>
           </div>

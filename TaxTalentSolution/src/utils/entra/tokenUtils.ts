@@ -1,3 +1,5 @@
+import { clearSessionRole, getSessionRole } from "../sessionRole";
+
 const AUTH_TOKEN_KEY = "authToken";
 const AUTH_USER_KEY = "entraUser";
 
@@ -60,6 +62,7 @@ export function setAuthToken(token: string): void {
 export function clearAuthSession(): void {
   sessionStorage.removeItem(AUTH_TOKEN_KEY);
   sessionStorage.removeItem(AUTH_USER_KEY);
+  clearSessionRole();
 }
 
 export function getStoredEntraUser(): Record<string, unknown> | null {
@@ -83,9 +86,7 @@ export function hasActiveEntraSession(): boolean {
 
 export function getEntraSessionView(): string | null {
   if (!hasActiveEntraSession()) return null;
-  const user = getStoredEntraUser();
-  const role =
-    (user?.user_metadata as { role?: string } | undefined)?.role ?? "candidate";
+  const role = getSessionRole();
   if (role === "admin") return "admin-portal";
   if (role === "employer") return "employer-portal";
   return "dashboard";

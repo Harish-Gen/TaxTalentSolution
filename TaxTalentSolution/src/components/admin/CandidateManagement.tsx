@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -35,11 +35,13 @@ import {
   LinkedinIcon,
   Loader2
 } from "lucide-react";
-import { useCandidates, candidateSkills } from "../../database";
-import LocalDatabase from "../../database/localDb";
+import { useCandidates } from "../../database";
 import { loadProfile } from "../../database/profileStore";
 import { candidateService } from "../../api/candidateService";
+import { certificateService } from "../../api/certificateService";
+import type { Certificate } from "../../database/types";
 import { toast } from "sonner";
+import { downloadStorageFile, isExternalFileUrl } from "../../api/fileService";
 
 interface Candidate {
   id: string;
@@ -59,10 +61,11 @@ interface Candidate {
 // Detailed candidate data for profile view (similar to employer view)
 const getCandidateDetails = (
   candidateId: string,
-  mockCandidates: Candidate[],
-  dbCandidates: import("../../database/types").Candidate[]
+  listCandidates: Candidate[],
+  dbCandidates: import("../../database/types").Candidate[],
+  apiCertificates: Certificate[] = []
 ) => {
-  const candidate = mockCandidates.find(c => c.id === candidateId);
+  const candidate = listCandidates.find(c => c.id === candidateId);
   if (!candidate) return null;
 
   // Find matching DB record to pull real fields
@@ -97,11 +100,11 @@ const getCandidateDetails = (
     ? (() => { try { const raw = localStorage.getItem(`tts_competencies_${dbRecord.user_id}`); return raw ? JSON.parse(raw) : null; } catch { return null; } })()
     : null;
 
-  // Skills: from profile competencies (filled by candidate), fall back to DB skills
+  const taxSkills = (dbRecord as { tax_expertise?: string[] } | undefined)?.tax_expertise || candidate.skills;
   const skills_detailed = storedProfile?.skills?.length
     ? storedProfile.skills.map(s => ({ name: s, proficiency: "Competency", verified: true }))
-    : candidate.skills.length > 0
-      ? candidate.skills.map(s => ({ name: s, proficiency: "Intermediate", verified: false }))
+    : taxSkills.length > 0
+      ? taxSkills.map(s => ({ name: s, proficiency: "Intermediate", verified: false }))
       : [{ name: "No skills on record", proficiency: "N/A", verified: false }];
 
   // Experience: from profile
@@ -124,10 +127,16 @@ const getCandidateDetails = (
       }))
     : [] as Array<{ degree: string; institution: string; year: string | number }>;
 
-  // Certifications: from profile (earned certs)
-  const certifications = storedProfile?.certifications?.length
+  const apiCertRows = apiCertificates.map((c) => ({
+    name: c.title,
+    issuer: 'TaxTalent',
+    year: new Date(c.issue_date).getFullYear(),
+    score: c.score ?? null,
+  }));
+  const profileCerts = storedProfile?.certifications?.length
     ? storedProfile.certifications.map(c => ({ name: c, issuer: '', year: null as number | null, score: null as number | null }))
-    : [] as Array<{ name: string; issuer: string; year: number | null; score: number | null }>;
+    : [];
+  const certifications = apiCertRows.length > 0 ? apiCertRows : profileCerts;
 
   return {
     ...candidate,
@@ -139,14 +148,15 @@ const getCandidateDetails = (
     title: storedProfile?.title || dbRecord?.headline || candidate.name,
     linkedin: dbRecord?.linkedin_url
       ? dbRecord.linkedin_url.replace(/^https?:\/\//, '')
-      : 'linkedin.com/in/' + candidate.name.toLowerCase().replace(/\s+/g, ''),
+      : '',
     profileViews: dbRecord?.profile_views ?? 0,
     availability: availabilityLabel[dbRecord?.availability ?? ''] || storedProfile?.availability || 'Immediate',
     hourlyRate,
     preferredRate,
     workMode: workModeLabel[dbRecord?.work_mode ?? ''] || 'Remote',
-    timeZone: "IST (UTC+5:30)",
+    timeZone: "—",
     summary: storedProfile?.summary || dbRecord?.summary || "No summary provided.",
+    resumeUrl: dbRecord?.resume_url,
 
     skills_detailed,
     competencies: competenciesRaw,
@@ -154,41 +164,15 @@ const getCandidateDetails = (
     experience_details,
     education,
 
-    assessments: [
-      { name: "Form 1040 Assessment", score: 95, percentile: 92, date: "2024-11-15" },
-      { name: "Schedule C Assessment", score: 92, percentile: 88, date: "2024-10-20" },
-      { name: "Itemized Deductions", score: 88, percentile: 85, date: "2024-09-10" },
-    ],
-    
-    languages: ["English (Fluent)", "Hindi (Native)", "Kannada (Native)"],
-    
-    tools: ["ProConnect Tax", "Drake Tax", "CCH Axcess", "Microsoft Excel", "QuickBooks"],
-    
+    assessmentsTaken: apiCertificates.length,
+    languages: [] as string[],
+    tools: [] as string[],
     interviewFeedback: {
-      totalInterviews: 3,
-      avgRating: 4.5,
-      recommendations: {
-        highly: 2,
-        recommended: 1,
-        maybe: 0,
-        not: 0
-      }
+      totalInterviews: 0,
+      avgRating: 0,
+      recommendations: { highly: 0, recommended: 0, maybe: 0, not: 0 },
     },
-    
-    screening: (() => {
-      const saved = loadScreening(candidateId);
-      if (saved) return saved;
-      return {
-        domainKnowledge:     { rating: 8, comments: "Strong understanding of US tax regulations and forms. Demonstrates expertise in 1040 individual returns and multi-state filing requirements." },
-        communicationSkills: { rating: 9, comments: "Excellent written and verbal communication skills. Responds promptly to emails and maintains professional tone in all interactions." },
-        interpersonalSkills: { rating: 8, comments: "Works well with team members and clients. Demonstrates empathy and patience when explaining complex tax concepts." },
-        leadershipAbility:   { rating: 7, comments: "Shows potential for leadership roles. Has mentored junior team members and takes initiative on complex cases." },
-        cultureFit:          { rating: 9, comments: "Excellent cultural fit for US-based firms. Understands professional expectations and adapts well to remote work environments." },
-        overallRating:       { rating: 8, comments: "Highly recommended candidate with strong technical skills and professional demeanor. Ready for immediate placement with minimal training." },
-        verifiedBy: "Admin Team",
-        lastUpdated: "2024-12-15"
-      };
-    })()
+    screening: loadScreening(candidateId) || { ...DEFAULT_SCREENING },
   };
 };
 
@@ -196,7 +180,19 @@ export function CandidateManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [detailCerts, setDetailCerts] = useState<Certificate[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    if (!selectedCandidate) {
+      setDetailCerts([]);
+      return;
+    }
+    certificateService
+      .getByCandidateId(selectedCandidate.id)
+      .then(setDetailCerts)
+      .catch(() => setDetailCerts([]));
+  }, [selectedCandidate?.id]);
 
   // Local status overrides so UI reflects changes immediately after approve/reject
 const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved" | "rejected" | "pending">>({});
@@ -209,26 +205,29 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [editForm, setEditForm] = useState({
-    name: "", email: "", phone: "", location_city: "", location_state: "",
+    name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
     experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
   });
   
   // Fetch from database
-  const { candidates: dbCandidates, loading: candidatesLoading } = useCandidates();
+  const { candidates: dbCandidates, loading: candidatesLoading, refresh: refreshCandidates } = useCandidates();
   
   const loading = candidatesLoading;
   
   // Transform database candidates to component format
   const candidates: Candidate[] = useMemo(() => {
     return dbCandidates.map(candidate => {
-      const candidateData = candidate as any;
-      const skills = Array.isArray(candidateData.taxexpertise) 
-        ? candidateData.taxexpertise 
-        : (typeof candidateData.taxexpertise === 'string' ? [candidateData.taxexpertise] : []);
+      const candidateData = candidate as {
+        name?: string;
+        email?: string;
+        phone?: string;
+        tax_expertise?: string[];
+      };
+      const skills = candidateData.tax_expertise || [];
 
       return {
         id: candidate.id,
-        name: candidateData.name || 'Unknown',
+        name: candidateData.name || candidate.headline || 'Candidate',
         email: candidateData.email || '',
         phone: candidateData.phone || '',
         location: candidate.location_city ? `${candidate.location_city}, ${candidate.location_state || ''}` : "Remote",
@@ -310,6 +309,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         phone: fresh.phone || candidate.phone,
         location_city: fresh.location_city || '',
         location_state: fresh.location_state || '',
+        location_country: fresh.location_country || 'IN',
         experience_years: fresh.experience_years || candidate.experience,
         headline: fresh.headline || '',
         availability: fresh.availability || 'immediate',
@@ -348,6 +348,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         phone: editForm.phone,
         location_city: editForm.location_city,
         location_state: editForm.location_state,
+        location_country: editForm.location_country,
         experience_years: editForm.experience_years,
         headline: editForm.headline,
         availability: editForm.availability as any,
@@ -355,18 +356,32 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         hourly_rate: editForm.hourly_rate,
       });
 
-      // Update selectedCandidate if it's the one being edited
+      const freshList = await candidateService.getCandidates();
+      await refreshCandidates();
+
       if (selectedCandidate?.id === editingCandidate.id) {
-        setSelectedCandidate(prev => prev ? {
-          ...prev,
-          name: editForm.name,
-          email: editForm.email,
-          phone: editForm.phone,
-          location: `${editForm.location_city}, ${editForm.location_state}`,
-          experience: editForm.experience_years,
-        } : prev);
+        const listFromFresh = freshList.map((c) => {
+          const row = c as { name?: string; email?: string; phone?: string; tax_expertise?: string[] };
+          return {
+            id: c.id,
+            name: row.name || c.headline || "Candidate",
+            email: row.email || "",
+            phone: row.phone || "",
+            location: [c.location_city, c.location_state, c.location_country].filter(Boolean).join(", ") || "Remote",
+            experience: c.experience_years || 0,
+            status: c.status,
+            skills: row.tax_expertise || [],
+          } as Candidate;
+        });
+        const details = getCandidateDetails(
+          editingCandidate.id,
+          listFromFresh,
+          freshList,
+          detailCerts
+        );
+        if (details) setSelectedCandidate(details);
       }
-      
+
       toast.success("Candidate information updated successfully");
       setEditingCandidate(null);
     } catch (error) {
@@ -388,6 +403,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         phone: editForm.phone,
         location_city: editForm.location_city,
         location_state: editForm.location_state,
+        location_country: editForm.location_country,
         experience_years: editForm.experience_years,
         headline: editForm.headline,
         availability: editForm.availability as any,
@@ -396,11 +412,12 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         status: 'pending',
       });
       
+      await refreshCandidates();
       toast.success("Candidate profile created successfully");
       setIsAddingCandidate(false);
       // Reset form
       setEditForm({
-        name: "", email: "", phone: "", location_city: "", location_state: "",
+        name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
         experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
       });
     } catch (error) {
@@ -441,7 +458,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   }
 
   const candidateDetails = selectedCandidate
-    ? getCandidateDetails(selectedCandidate.id, candidates, dbCandidates)
+    ? getCandidateDetails(selectedCandidate.id, candidates, dbCandidates, detailCerts)
     : null;
 
   // ── Create/Edit View Logic ──────────────────────────────────────────────
@@ -453,7 +470,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       setIsAddingCandidate(false);
       if (!isEditing) {
         setEditForm({
-          name: "", email: "", phone: "", location_city: "", location_state: "",
+          name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
           experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
         });
       }
@@ -501,7 +518,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
                 onChange={e => setEditForm(f => ({ ...f, headline: e.target.value }))} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label>City</Label>
                 <Input className="mt-1" value={editForm.location_city}
@@ -511,6 +528,11 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
                 <Label>State</Label>
                 <Input className="mt-1" value={editForm.location_state}
                   onChange={e => setEditForm(f => ({ ...f, location_state: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Country</Label>
+                <Input className="mt-1" value={editForm.location_country}
+                  onChange={e => setEditForm(f => ({ ...f, location_country: e.target.value }))} placeholder="IN" />
               </div>
             </div>
 
@@ -576,7 +598,26 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
             ← Back to List
           </Button>
           <div className="flex space-x-2">
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              disabled={!candidateDetails.resumeUrl}
+              onClick={async () => {
+                const ref = candidateDetails.resumeUrl;
+                if (!ref) {
+                  toast.error("No resume on file for this candidate");
+                  return;
+                }
+                try {
+                  if (isExternalFileUrl(ref)) {
+                    window.open(ref, "_blank", "noopener,noreferrer");
+                  } else {
+                    await downloadStorageFile(ref);
+                  }
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Download failed");
+                }
+              }}
+            >
               <Download className="w-4 h-4 mr-2" />
               Download Resume
             </Button>
@@ -665,12 +706,14 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
                   <Phone className="w-4 h-4 text-muted-foreground" />
                   <span>{candidateDetails.phone}</span>
                 </div>
-                <div className="flex items-center justify-end space-x-2 text-sm">
-                  <LinkedinIcon className="w-4 h-4 text-muted-foreground" />
-                  <a href={`https://${candidateDetails.linkedin}`} className="text-primary hover:underline">
-                    LinkedIn Profile
-                  </a>
-                </div>
+                {candidateDetails.linkedin ? (
+                  <div className="flex items-center justify-end space-x-2 text-sm">
+                    <LinkedinIcon className="w-4 h-4 text-muted-foreground" />
+                    <a href={`https://${candidateDetails.linkedin}`} className="text-primary hover:underline">
+                      LinkedIn Profile
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </div>
           </CardContent>
@@ -1161,6 +1204,15 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
 
           {/* Interview Feedback Tab */}
           <TabsContent value="interviews" className="space-y-6">
+            {candidateDetails.interviewFeedback.totalInterviews === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No interview records for this candidate yet.</p>
+                </CardContent>
+              </Card>
+            ) : (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="pt-6 text-center">
@@ -1207,6 +1259,8 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

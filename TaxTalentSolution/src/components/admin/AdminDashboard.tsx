@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { useDashboardStats, useCandidates, useEmployers, useUsers } from "../../database";
+import { useDashboardStats, useCandidates, useEmployers, useAssessments } from "../../database";
 
 interface AdminDashboardProps {
   onNavigate: (section: string) => void;
@@ -55,31 +55,26 @@ function computeGrowthData(
   });
 }
 
-const assessmentDistribution = [
-  { name: "Form 1040", value: 450, color: "#0066cc" },
-  { name: "Form 1065", value: 320, color: "#00cc66" },
-  { name: "Form 1120", value: 280, color: "#cc6600" },
-  { name: "S Corp", value: 210, color: "#cc0066" },
-  { name: "Partnership", value: 180, color: "#6600cc" },
-  { name: "Private Equity", value: 140, color: "#00cccc" },
-];
-
-const revenueData = [
-  { month: "Jan", assessments: 245000, subscriptions: 178000 },
-  { month: "Feb", assessments: 268000, subscriptions: 195000 },
-  { month: "Mar", assessments: 292000, subscriptions: 212000 },
-  { month: "Apr", assessments: 315000, subscriptions: 228000 },
-  { month: "May", assessments: 338000, subscriptions: 245000 },
-  { month: "Jun", assessments: 362000, subscriptions: 262000 },
-];
-
-
+const CHART_COLORS = ['#0066cc', '#00cc66', '#9933cc', '#ff6600', '#cc0066', '#33cccc'];
 
 export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const { stats, loading } = useDashboardStats();
   const { candidates: candidateList } = useCandidates();
   const { employers: employerList } = useEmployers();
-  const { users: userList } = useUsers();
+  const { assessments: assessmentList } = useAssessments({ candidateVisibleOnly: false });
+
+  const assessmentDistribution = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of assessmentList) {
+      const cat = a.category?.trim() || 'General';
+      counts.set(cat, (counts.get(cat) || 0) + 1);
+    }
+    return [...counts.entries()].map(([name, value], i) => ({
+      name,
+      value,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
+  }, [assessmentList]);
 
   const userGrowthData = useMemo(
     () => computeGrowthData(candidateList, employerList),
@@ -92,8 +87,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       ...candidateList.map(c => ({
         id: 0,
         type: 'candidate',
-        user: userList.find(u => u.id === c.user_id)?.name || 'Unknown',
-        action: c.status === 'pending' ? 'New candidate — pending review' : 'Candidate profile active',
+        user: (c as { name?: string }).name || c.headline || 'Candidate',
+        action: c.status === 'pending' ? 'New candidate ? pending review' : 'Candidate profile active',
         time: timeAgo(c.created_at),
         status: c.status === 'approved' ? 'success' : 'warning',
         _date: new Date(c.created_at),
@@ -112,7 +107,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       .sort((a, b) => b._date.getTime() - a._date.getTime())
       .slice(0, 5)
       .map((item, i) => ({ ...item, id: i + 1 }));
-  }, [candidateList, employerList, userList]);
+  }, [candidateList, employerList]);
   
   // Use database stats or defaults
   const platformStats = {
@@ -123,8 +118,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     activeEmployers: stats?.activeEmployers || 0,
     completedAssessments: stats?.totalCertificates || 0,
     totalAssessments: stats?.totalAssessments || 0,
-    avgAssessmentScore: 82.4,
-    platformUptime: 99.8,
+    avgAssessmentScore: stats?.avgCertificateScore,
     totalJobs: stats?.totalJobs || 0,
     activeJobs: stats?.activeJobs || 0,
     totalApplications: stats?.totalApplications || 0,
@@ -150,7 +144,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <p className="text-sm text-muted-foreground">Total Candidates</p>
                 <p className="text-3xl mt-2">{platformStats.totalCandidates.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {platformStats.approvedCandidates} approved · {platformStats.pendingCandidates} pending
+                  {platformStats.approvedCandidates} approved ? {platformStats.pendingCandidates} pending
                 </p>
               </div>
               <Users className="w-10 h-10 text-primary opacity-50" />
@@ -234,6 +228,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <CardDescription>By tax form category</CardDescription>
           </CardHeader>
           <CardContent>
+            {assessmentDistribution.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-12">
+                No assessment distribution data yet.
+              </p>
+            ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -252,83 +251,54 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Revenue & Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Breakdown */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Revenue Breakdown</CardTitle>
-            <CardDescription>Assessments vs Subscriptions</CardDescription>
+            <CardTitle>Applications overview</CardTitle>
+            <CardDescription>Job applications on the platform</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="assessments" fill="#0066cc" name="Assessments" />
-                <Bar dataKey="subscriptions" fill="#00cc66" name="Subscriptions" />
-              </BarChart>
-            </ResponsiveContainer>
+            <p className="text-sm text-muted-foreground text-center py-12">
+              {platformStats.totalApplications === 0
+                ? 'No job applications recorded yet.'
+                : `${platformStats.totalApplications} total application(s) across active jobs.`}
+            </p>
           </CardContent>
         </Card>
 
-        {/* System Health */}
         <Card>
           <CardHeader>
-            <CardTitle>System Health</CardTitle>
-            <CardDescription>Platform metrics</CardDescription>
+            <CardTitle>Platform summary</CardTitle>
+            <CardDescription>From live API data</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Platform Uptime</span>
-                <Badge className="bg-green-100 text-green-800">
-                  {platformStats.platformUptime}%
-                </Badge>
-              </div>
-              <div className="w-full bg-secondary rounded-full h-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full" 
-                  style={{ width: `${platformStats.platformUptime}%` }}
-                ></div>
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Certificates issued</span>
+              <Badge variant="outline">{platformStats.completedAssessments}</Badge>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Avg Assessment Score</span>
-                <Badge variant="outline">{platformStats.avgAssessmentScore}%</Badge>
-              </div>
-              <div className="w-full bg-secondary rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full" 
-                  style={{ width: `${platformStats.avgAssessmentScore}%` }}
-                ></div>
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Avg certificate score</span>
+              <Badge variant="outline">
+                {platformStats.avgAssessmentScore != null
+                  ? `${platformStats.avgAssessmentScore}%`
+                  : '?'}
+              </Badge>
             </div>
-
-            <div className="pt-4 space-y-2">
-              <div className="flex items-center justify-between p-2 bg-green-50 rounded">
-                <div className="flex items-center space-x-2">
-                  <Activity className="w-4 h-4 text-green-600" />
-                  <span className="text-sm">API Status</span>
-                </div>
-                <Badge className="bg-green-100 text-green-800">Healthy</Badge>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Job applications</span>
+              <Badge variant="outline">{platformStats.totalApplications}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-green-50 rounded">
+              <div className="flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-green-600" />
+                <span className="text-sm">API connected</span>
               </div>
-              <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm">Avg Response Time</span>
-                </div>
-                <span className="text-sm">124ms</span>
-              </div>
+              <Badge className="bg-green-100 text-green-800">Live</Badge>
             </div>
           </CardContent>
         </Card>

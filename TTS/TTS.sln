@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36109.1 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "TTS", "TTS\TTS.pyproj", "{93D050D9-1060-4ED1-B589-F049179AE068}"
 EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "TTS.Migrations", "Migrations\TTS.Migrations.pyproj", "{E4F5A6B7-8901-2345-6789-0ABCDEF12345}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -13,6 +15,8 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{93D050D9-1060-4ED1-B589-F049179AE068}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{93D050D9-1060-4ED1-B589-F049179AE068}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4F5A6B7-8901-2345-6789-0ABCDEF12345}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4F5A6B7-8901-2345-6789-0ABCDEF12345}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

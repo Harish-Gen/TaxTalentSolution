@@ -1,11 +1,11 @@
-const BASE_URL = 'http://127.0.0.1:8000';
+import { API_BASE_URL } from '../utils/entra/config';
 
 export async function apiRequest<T>(
   endpoint: string,
   method: string = 'GET',
-  body?: any
+  body?: unknown
 ): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
+  const url = `${API_BASE_URL}${endpoint}`;
   const options: RequestInit = {
     method,
     headers: {
@@ -13,7 +13,7 @@ export async function apiRequest<T>(
     },
   };
 
-  if (body) {
+  if (body !== undefined) {
     options.body = JSON.stringify(body);
   }
 
@@ -21,7 +21,15 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `API request failed with status ${response.status}`);
+    const detail =
+      typeof errorData.detail === 'string'
+        ? errorData.detail
+        : JSON.stringify(errorData.detail || errorData);
+    throw new Error(detail || `API request failed with status ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json();

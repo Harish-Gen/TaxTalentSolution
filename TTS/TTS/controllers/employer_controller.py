@@ -51,7 +51,14 @@ def upsert_employer(employer: EmployerCreateUpdate, repo: IEmployerRepository = 
             
         return repo.upsert_employer(employer)
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        msg = str(ve)
+        if "email already exists" in msg.lower():
+            msg = (
+                "Could not save employer. If this email is already registered, "
+                "use Admin → User Management to link the user to an employer, "
+                "or edit the existing employer record instead of creating a duplicate."
+            )
+        raise HTTPException(status_code=400, detail=msg)
     except HTTPException:
         raise
     except Exception as e:

@@ -14,15 +14,15 @@ import {
   setStoredEntraUser,
 } from "../utils/entra/tokenUtils";
 import { redirectToLandingAfterCancel } from "../utils/entra/entraAuthService";
+import {
+  consumeSignupIntent,
+  signupIntentToApiRole,
+} from "../utils/entra/signupIntent";
+import {
+  normalizeAppRole,
+  setSessionRole,
+} from "../utils/sessionRole";
 import { appRootUrl } from "../utils/appPaths";
-
-function resolveRoleFromBackend(roleName?: string): string {
-  if (!roleName) return "candidate";
-  const normalized = roleName.toLowerCase();
-  if (normalized.includes("admin")) return "admin";
-  if (normalized.includes("employer")) return "employer";
-  return "candidate";
-}
 
 function navigateAfterAuth(role: string): void {
   let target = appRootUrl("view=dashboard");
@@ -102,8 +102,13 @@ export function ParseToken() {
       let isNewUser = false;
       let apiUser: { id?: string; email?: string; name?: string; role?: string } | undefined;
 
+      const signupIntent = consumeSignupIntent();
+
       try {
-        const apiResponse = await signUpOrSignIn(idToken);
+        const apiResponse = await signUpOrSignIn(
+          idToken,
+          signupIntent ? signupIntentToApiRole(signupIntent) : undefined
+        );
         portalToken =
           apiResponse.Token ||
           apiResponse.token ||
@@ -112,7 +117,7 @@ export function ParseToken() {
           apiResponse.IsNewUser === true || apiResponse.isNewUser === true;
         apiUser = apiResponse.user;
         if (apiResponse.user?.role) {
-          role = resolveRoleFromBackend(apiResponse.user.role);
+          role = normalizeAppRole(apiResponse.user.role);
         }
         setAuthToken(portalToken);
       } catch (apiErr) {
@@ -120,7 +125,7 @@ export function ParseToken() {
         if (email) {
           try {
             const loginResponse = await loginByEmailFallback(email);
-            role = resolveRoleFromBackend(loginResponse.user?.role?.name);
+            role = normalizeAppRole(loginResponse.user?.role?.name);
             setAuthToken(idToken);
           } catch {
             const message =
@@ -150,6 +155,12 @@ export function ParseToken() {
       if (apiUser?.name) {
         appUser.user_metadata.name = apiUser.name;
       }
+      setSessionRole({
+        userId: apiUser?.id ?? appUser.id,
+        roleName: apiUser?.role ?? role,
+        roleId: apiUser?.roleid,
+      });
+
       const phoneFromToken = getPhoneFromClaims(claims);
       setStoredEntraUser({
         ...appUser,

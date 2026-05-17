@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -10,6 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Checkbox } from "../ui/checkbox";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
+import {
+  downloadStorageFile,
+  resolveStorageDownloadUrl,
+  uploadFileToStorage,
+} from "../../api/fileService";
+import {
+  StorageFileUpload,
+  type StorageFileUploadHandle,
+  type UploadedStorageFile,
+} from "../ui/storage-file-upload";
+import { toast } from "sonner";
 import { 
   Edit, 
   Plus, 
@@ -27,13 +38,25 @@ import {
   Loader2,
   Save,
   CheckCircle2,
-  Link2
+  Link2,
+  FileText,
 } from "lucide-react";
-import { useCandidateProfile, LocalDatabase } from "../../database";
-import { loadProfile, saveProfile, loadProfileImage, saveProfileImage } from "../../database/profileStore";
+import {
+  loadProfile,
+  saveProfile,
+  loadProfileImage,
+  saveProfileImage,
+  createEmptyProfileFromUser,
+  loadResume,
+  saveResume,
+  clearResume,
+  type StoredProfile,
+} from "../../database/profileStore";
 
 interface ProfilePageProps {
   user: any;
+  /** Increment from parent to open the resume file picker (e.g. header Upload Resume). */
+  resumeUploadTrigger?: number;
 }
 
 // Predefined US Taxation Skills List
@@ -125,7 +148,7 @@ const US_TAX_SKILLS = [
   "Accounts Payable/Receivable",
 ];
 
-export function ProfilePage({ user }: ProfilePageProps) {
+export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -173,6 +196,12 @@ export function ProfilePage({ user }: ProfilePageProps) {
   const [linkedInStatus, setLinkedInStatus] = useState<'idle' | 'loading' | 'found' | 'not-found'>('idle');
   const [linkedInMessage, setLinkedInMessage] = useState("");
 
+  const userId = user?.id ?? "guest";
+  const accountEmail = user?.email ?? "";
+  const resumeUploadRef = useRef<StorageFileUploadHandle>(null);
+  const resumeSectionRef = useRef<HTMLDivElement>(null);
+  const [uploadedResume, setUploadedResume] = useState<UploadedStorageFile | null>(null);
+
   const months = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -181,7 +210,7 @@ export function ProfilePage({ user }: ProfilePageProps) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 50 }, (_, i) => currentYear - i);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
@@ -196,14 +225,15 @@ export function ProfilePage({ user }: ProfilePageProps) {
         return;
       }
 
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        setProfileImage(dataUrl);
-        saveProfileImage(userId, dataUrl);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const stored = await uploadFileToStorage(file, `profiles/avatars/${userId}`);
+        const imageUrl = resolveStorageDownloadUrl(stored.name);
+        setProfileImage(imageUrl);
+        saveProfileImage(userId, imageUrl);
+        toast.success("Profile photo uploaded");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to upload image");
+      }
     }
   };
 
@@ -536,166 +566,72 @@ export function ProfilePage({ user }: ProfilePageProps) {
     }
   };
 
-  // Use database profile data
-  const { candidate, user: dbUser, loading } = useCandidateProfile(1);
+  const emptyProfile = createEmptyProfileFromUser(user);
 
-  const userId = user?.id ?? 'guest';
-
-  // New registered accounts (from userStore) have ids starting with 'usr-'
-  const isNewAccount = userId.startsWith('usr-');
-
-  const defaultProfile = isNewAccount
-    ? {
-        name: user.user_metadata?.name || "",
-        title: "",
-        location: "",
-        summary: "",
-        email: user.email ?? "",
-        phone: user.user_metadata?.phone || "",
-        website: "",
-        availability: "Actively Looking",
-        preferredLocation: "",
-        experience: [] as Array<{ id: number; company: string; position: string; duration: string; location: string; description: string }>,
-        education: [] as Array<{ id: number; institution: string; degree: string; field: string; duration: string; description: string }>,
-        skills: [] as string[],
-        certifications: [] as string[],
-      }
-    : {
-        name: user.user_metadata?.name || "John Doe",
-        title: "Senior Tax Associate",
-        location: "Mumbai, Maharashtra, India",
-        summary: "Experienced US Tax professional with 5+ years of expertise in individual and corporate tax preparation. Specialized in 1040, 1065, 1120, and S Corp returns. Proven track record of handling complex tax scenarios for high-net-worth individuals and multinational corporations.",
-        email: user.email,
-        phone: "+91 9876543210",
-        website: "linkedin.com/in/johndoe",
-        availability: "Actively Looking",
-        preferredLocation: "",
-        experience: [
-          {
-            id: 1,
-            company: "TaxPro Solutions",
-            position: "Senior Tax Associate",
-            duration: "Jan 2022 - Present",
-            location: "Mumbai, India",
-            description: "Lead a team of 8 tax professionals in preparing complex US tax returns. Specialized in partnership returns (1065) and S-Corporation filings. Achieved 98% client satisfaction rate."
-          },
-          {
-            id: 2,
-            company: "Global Tax Services",
-            position: "Tax Associate",
-            duration: "Jun 2019 - Dec 2021",
-            location: "Pune, India",
-            description: "Prepared individual and corporate tax returns for US clients. Gained expertise in 1040, 1120, and multi-state tax filings. Completed over 500 tax returns annually."
-          }
-        ],
-        education: [
-          {
-            id: 1,
-            institution: "University of Mumbai",
-            degree: "Master of Commerce (M.Com)",
-            field: "Taxation",
-            duration: "2017 - 2019",
-            description: "Specialized in international taxation and US tax laws. Graduated with distinction."
-          },
-          {
-            id: 2,
-            institution: "Mumbai University",
-            degree: "Bachelor of Commerce (B.Com)",
-            field: "Accounting & Finance",
-            duration: "2014 - 2017",
-            description: "Foundation in accounting principles and financial management."
-          }
-        ],
-        skills: [
-          "1040 Individual Returns", "1065 Partnership Returns", "1120 Corporate Returns",
-          "S Corporation", "Multi-state Filing", "Tax Research", "QuickBooks", "Drake Software",
-          "CCH Axcess", "UltraTax CS", "Excel Advanced", "Tax Planning"
-        ],
-        certifications: [
-          "IRS Annual Filing Season Program",
-          "NAEA Enrolled Agent",
-          "Intuit ProAdvisor Certification"
-        ]
-      };
-
-  // Load persisted profile (falls back to LocalDatabase seeded data, then defaultProfile)
-  const [profile, setProfile] = useState(() => {
+  const [profile, setProfile] = useState<StoredProfile>(() => {
     const saved = loadProfile(userId);
-    if (saved) return { ...defaultProfile, ...saved };
-
-    // For seeded demo candidates (not new 'usr-' accounts), bootstrap from LocalDatabase
-    // so both ProfilePage and Admin show identical data from the start.
-    if (!isNewAccount) {
-      const dbCandidate = LocalDatabase.getCandidateByUserId(userId);
-      if (dbCandidate) {
-        const li = LocalDatabase.getLinkedInMappedProfile(dbCandidate.id);
-        if (li) {
-          const seeded = {
-            name: li.name || defaultProfile.name,
-            title: li.title || defaultProfile.title,
-            location: li.location || defaultProfile.location,
-            summary: li.summary || defaultProfile.summary,
-            email: user?.email ?? defaultProfile.email,
-            phone: user?.user_metadata?.phone || defaultProfile.phone,
-            website: li.website || defaultProfile.website,
-            availability: "Actively Looking",
-            preferredLocation: "",
-            experience: li.experience || [],
-            education: li.education || [],
-            skills: li.skills || [],
-            certifications: li.certifications || [],
-          };
-          // Persist immediately so admin reads the same data from localStorage
-          saveProfile(userId, seeded);
-          return seeded;
-        }
-      }
+    if (saved) {
+      return { ...emptyProfile, ...saved, email: accountEmail || saved.email };
     }
-
-    return defaultProfile;
+    return emptyProfile;
   });
 
-  // Load persisted profile image on mount
+  // Reload profile when the signed-in user changes
   useEffect(() => {
+    const base = createEmptyProfileFromUser(user);
+    const saved = loadProfile(userId);
+    if (saved) {
+      setProfile({ ...base, ...saved, email: accountEmail || saved.email });
+    } else {
+      setProfile(base);
+    }
     const savedImg = loadProfileImage(userId);
-    if (savedImg) setProfileImage(savedImg);
+    setProfileImage(savedImg);
+  }, [userId, user]);
+
+  useEffect(() => {
+    if (userId === "guest") {
+      setUploadedResume(null);
+      return;
+    }
+    setUploadedResume(loadResume(userId));
   }, [userId]);
+
+  useEffect(() => {
+    if (!resumeUploadTrigger) return;
+    resumeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const timer = window.setTimeout(() => resumeUploadRef.current?.openFilePicker(), 400);
+    return () => window.clearTimeout(timer);
+  }, [resumeUploadTrigger]);
+
+  const handleResumeChange = (file: UploadedStorageFile | null) => {
+    setUploadedResume(file);
+    if (userId === "guest") return;
+    if (file) {
+      saveResume(userId, file);
+    } else {
+      clearResume(userId);
+    }
+  };
+
+  const handleDownloadResume = async () => {
+    if (!uploadedResume) return;
+    try {
+      await downloadStorageFile(uploadedResume.blobName, uploadedResume.displayName);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not download resume");
+    }
+  };
 
   // Save handler — persists everything to localStorage
   const handleSaveProfile = useCallback(() => {
     setSaveStatus('saving');
-    saveProfile(userId, profile);
+    const profileToSave = { ...profile, email: accountEmail || profile.email };
+    saveProfile(userId, profileToSave);
     if (profileImage) saveProfileImage(userId, profileImage);
     setTimeout(() => setSaveStatus('saved'), 400);
     setTimeout(() => setSaveStatus('idle'), 2500);
-  }, [userId, profile, profileImage]);
-
-  // Update profile when database data loads (only if no local save exists)
-  useEffect(() => {
-    if (candidate && dbUser && !loadProfile(userId)) {
-      setProfile(prev => ({
-        ...prev,
-        name: `${dbUser.firstName} ${dbUser.lastName}`,
-        title: candidate.currentTitle || prev.title,
-        location: candidate.currentLocation || prev.location,
-        summary: candidate.professionalSummary || prev.summary,
-        email: dbUser.email,
-        phone: dbUser.phone || prev.phone,
-        website: candidate.linkedinUrl || prev.website,
-        availability: candidate.isOpenToWork ? "Actively Looking" : "Not Looking",
-        skills: candidate.skills || prev.skills,
-      }));
-    }
-  }, [candidate, dbUser]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2">Loading profile...</span>
-      </div>
-    );
-  }
+  }, [userId, profile, profileImage, accountEmail]);
 
   const handleConnectLinkedIn = () => {
     if (!linkedInInputUrl.trim()) {
@@ -706,33 +642,10 @@ export function ProfilePage({ user }: ProfilePageProps) {
     setLinkedInStatus('loading');
     setLinkedInMessage('');
     setTimeout(() => {
-      const match = LocalDatabase.getCandidateByLinkedInUrl(linkedInInputUrl.trim());
-      if (match) {
-        const mapped = LocalDatabase.getLinkedInMappedProfile(match.id);
-        if (mapped) {
-          setProfile(prev => ({
-            ...prev,
-            name: mapped.name || prev.name,
-            title: mapped.title || prev.title,
-            location: mapped.location || prev.location,
-            summary: mapped.summary || prev.summary,
-            email: mapped.email || prev.email,
-            phone: mapped.phone || prev.phone,
-            website: mapped.website || prev.website,
-            skills: mapped.skills.length > 0 ? mapped.skills : prev.skills,
-            certifications: mapped.certifications.length > 0 ? mapped.certifications : prev.certifications,
-            experience: mapped.experience.length > 0 ? mapped.experience : prev.experience,
-            education: mapped.education.length > 0 ? mapped.education : prev.education,
-          }));
-          setLinkedInStatus('found');
-          setLinkedInMessage(`Profile found: ${mapped.name}. Experience, education, skills and certifications have been loaded.`);
-        }
-      } else {
-        setProfile(prev => ({ ...prev, website: linkedInInputUrl.trim() }));
-        setLinkedInStatus('not-found');
-        setLinkedInMessage('No matching profile found in the database. The URL has been saved to your profile.');
-      }
-    }, 600);
+      setProfile((prev) => ({ ...prev, website: linkedInInputUrl.trim() }));
+      setLinkedInStatus('not-found');
+      setLinkedInMessage('LinkedIn URL saved to your profile. Profile import from LinkedIn is not connected yet.');
+    }, 400);
   };
 
   return (
@@ -989,9 +902,15 @@ export function ProfilePage({ user }: ProfilePageProps) {
                       <Input
                         id="email"
                         type="email"
-                        value={profile.email}
-                        onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+                        value={accountEmail || profile.email}
+                        readOnly
+                        disabled
+                        className="bg-muted cursor-not-allowed"
+                        aria-describedby="email-hint"
                       />
+                      <p id="email-hint" className="text-xs text-muted-foreground mt-1">
+                        Email is tied to your sign-in account and cannot be changed here.
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="phone">Phone</Label>
@@ -1027,7 +946,7 @@ export function ProfilePage({ user }: ProfilePageProps) {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div className="flex items-center">
                       <Mail className="w-4 h-4 mr-2 text-muted-foreground" />
-                      {profile.email}
+                      {accountEmail || profile.email}
                     </div>
                     <div className="flex items-center">
                       <Phone className="w-4 h-4 mr-2 text-muted-foreground" />
@@ -1044,6 +963,36 @@ export function ProfilePage({ user }: ProfilePageProps) {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Resume */}
+      <Card id="profile-resume-section" ref={resumeSectionRef}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Resume
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Upload your latest resume for job applications and employer review.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <StorageFileUpload
+            ref={resumeUploadRef}
+            folder={`profiles/resumes/${userId}`}
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            maxSizeMb={5}
+            hint="PDF, DOC, or DOCX up to 5MB"
+            value={uploadedResume}
+            onChange={handleResumeChange}
+            disabled={userId === "guest"}
+          />
+          {uploadedResume && (
+            <Button type="button" variant="outline" size="sm" onClick={handleDownloadResume}>
+              Download resume
+            </Button>
+          )}
         </CardContent>
       </Card>
 

@@ -17,6 +17,27 @@ export interface BackendAssessment {
   modifiedon?: string;
 }
 
+/** Assessments shown on the candidate "Available" tab (API already filters isactive=1). */
+export function isCandidateVisibleAssessment(
+  assessment: Pick<DBAssessment, 'is_active' | 'status'>
+): boolean {
+  if (assessment.is_active === false) return false;
+  const status = (assessment.status || '').toLowerCase().trim();
+  if (!status) return true;
+  if (status === 'inactive' || status === 'archived') return false;
+  return status === 'active' || status === 'draft' || status === 'published';
+}
+
+function normalizeAssessmentStatus(status?: string | null): DBAssessment['status'] {
+  const value = (status || '').toLowerCase().trim();
+  if (value === 'active' || value === 'draft' || value === 'archived') {
+    return value;
+  }
+  if (!value || value === 'published') return 'active';
+  if (value === 'inactive') return 'archived';
+  return 'active';
+}
+
 function mapToDBAssessment(backend: BackendAssessment): DBAssessment {
   return {
     id: backend.id,
@@ -27,8 +48,8 @@ function mapToDBAssessment(backend: BackendAssessment): DBAssessment {
     duration_minutes: backend.durationminutes || 0,
     passing_score: backend.passingscore || 0,
     question_count: backend.numberofquestions || 0,
-    status: (backend.status as any) || 'draft',
-    is_active: backend.isactive ?? true,
+    status: normalizeAssessmentStatus(backend.status),
+    is_active: backend.isactive !== false && backend.isactive !== 0,
     created_at: backend.createdon || new Date().toISOString(),
     updated_at: backend.modifiedon || new Date().toISOString(),
     price: 0,
@@ -54,9 +75,12 @@ function mapToBackend(frontend: Partial<DBAssessment>): Partial<BackendAssessmen
 }
 
 export const assessmentService = {
+  isCandidateVisibleAssessment,
+
   async getAssessments(): Promise<DBAssessment[]> {
     const data = await apiRequest<BackendAssessment[]>('/api/assessments/');
-    return data.map(mapToDBAssessment);
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map(mapToDBAssessment);
   },
 
   async getAssessmentById(id: string): Promise<DBAssessment> {

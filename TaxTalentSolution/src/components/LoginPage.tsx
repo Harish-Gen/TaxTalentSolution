@@ -16,29 +16,37 @@ import {
   Star,
   CheckCircle,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  KeyRound,
-  Copy,
   Phone,
 } from "lucide-react";
 import { supabase } from "../utils/supabase/client";
 import { appRootUrl, assetUrl } from "../utils/appPaths";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
-import { validateLocalLogin, buildMockUser, localCredentials } from "../database/localAuth";
 import { registerUser, authenticateStoredUser, buildUserFromStored } from "../database/userStore";
 import { redirectToEntraSignIn } from "../utils/entra/entraAuthService";
 import { fetchEntraConfig } from "../api/entraConfigService";
 import { userService } from "../api/userService";
+import { setSessionRole } from "../utils/sessionRole";
+
+export type SignupRole = "candidate" | "employer_user";
 
 interface LoginPageProps {
   onBack: () => void;
-  onLocalLogin?: (user: ReturnType<typeof buildMockUser>) => void;
+  onLocalLogin?: (user: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => void;
   onLinkedInMatch?: () => void;
+  initialMode?: "login" | "signup";
+  initialSignupRole?: SignupRole;
+  lockSignupRole?: boolean;
 }
 
-export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPageProps) {
-  const [isLogin, setIsLogin] = useState(true);
+export function LoginPage({
+  onBack,
+  onLocalLogin,
+  onLinkedInMatch,
+  initialMode = "login",
+  initialSignupRole = "candidate",
+  lockSignupRole = false,
+}: LoginPageProps) {
+  const [isLogin, setIsLogin] = useState(initialMode === "login");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +54,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
   const [linkedIn, setLinkedIn] = useState("");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("IN");
-  const [signupRole, setSignupRole] = useState<'candidate' | 'employer_user'>('candidate');
+  const [signupRole, setSignupRole] = useState<SignupRole>(initialSignupRole);
   const [loading, setLoading] = useState(false);
 
   const COUNTRIES = [
@@ -73,7 +81,6 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
   ];
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
-  const [showDemoPanel, setShowDemoPanel] = useState(false);
   const [entraEnabled, setEntraEnabled] = useState(false);
 
   useEffect(() => {
@@ -81,6 +88,12 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
       .then((config) => setEntraEnabled(config.Enabled))
       .catch(() => setEntraEnabled(false));
   }, []);
+
+  useEffect(() => {
+    if (!isLogin && lockSignupRole) {
+      setSignupRole(initialSignupRole);
+    }
+  }, [isLogin, lockSignupRole, initialSignupRole]);
 
 
 
@@ -106,7 +119,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
         setLoading(false);
         return;
       }
-      await redirectToEntraSignIn();
+      await redirectToEntraSignIn(signupRole);
     } catch {
       showMessage("Microsoft sign-in failed. Please try again.", "error");
       setLoading(false);
@@ -153,14 +166,15 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
           const response = await userService.login(email);
           if (response && response.user) {
             const { user } = response;
-            // Store in session storage
-            sessionStorage.setItem('userId', user.id);
-            sessionStorage.setItem('userName', user.name || '');
-            sessionStorage.setItem('roleId', user.roleid || '');
-            sessionStorage.setItem('roleName', user.role?.name || '');
-            
+            setSessionRole({
+              userId: user.id,
+              roleId: user.roleid || "",
+              roleName: user.role?.name || "",
+            });
+            sessionStorage.setItem("userName", user.name || "");
+
             if (user.candidate?.currenttitle) {
-              sessionStorage.setItem('currentTitle', user.candidate.currenttitle);
+              sessionStorage.setItem("currentTitle", user.candidate.currenttitle);
             }
             
             showMessage(`Welcome back, ${user.name}!`, "success");
@@ -181,24 +195,15 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
             return;
           }
         } catch (err: any) {
-          // If backend fails, fall back to existing local/supabase logic
           console.error("Backend login failed, falling back to local auth", err);
-          
-          // 1. Try demo credentials first
           if (password) {
-            const localUser = validateLocalLogin(email, password);
-            if (localUser) {
-              showMessage(`Welcome back, ${localUser.name}!`, "success");
-              setTimeout(() => {
-                onLocalLogin?.(buildMockUser(localUser));
-              }, 600);
-              setLoading(false);
-              return;
-            }
-
-            // 2. Try registered accounts (localStorage)
             const storedUser = await authenticateStoredUser(email, password);
             if (storedUser) {
+              setSessionRole({
+                userId: storedUser.id,
+                roleName:
+                  storedUser.role === "employer_user" ? "Employer" : "Candidate",
+              });
               showMessage(`Welcome back, ${storedUser.name}!`, "success");
               setTimeout(() => {
                 onLocalLogin?.(buildUserFromStored(storedUser));
@@ -207,7 +212,6 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
               return;
             }
 
-            // 3. Fall back to Supabase
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
               showMessage(`Login failed: ${error.message}`, "error");
@@ -215,7 +219,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
               showMessage("Login successful! Welcome back.", "success");
             }
           } else {
-            showMessage("Login failed. Please check your email or provide a password for local auth.", "error");
+            showMessage("Login failed. Please check your email or provide a password.", "error");
           }
         }
       } else {
@@ -235,6 +239,11 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
           if (result.linkedInLoaded) {
             onLinkedInMatch?.();
           }
+          setSessionRole({
+            userId: result.user.id,
+            roleName:
+              result.user.role === "employer_user" ? "Employer" : "Candidate",
+          });
           showMessage(`Welcome, ${name}! Your account has been created.`, "success");
           setTimeout(() => {
             onLocalLogin?.(buildUserFromStored(result.user!));
@@ -306,10 +315,11 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                   {isLogin ? "Welcome Back" : "Create Your Account"}
                 </CardTitle>
                 <p className="text-muted-foreground mt-2">
-                  {isLogin 
-                    ? "Sign in to access your professional dashboard" 
-                    : "Join tax professionals on Tax Talent Solution"
-                  }
+                  {isLogin
+                    ? "Sign in to access your professional dashboard"
+                    : signupRole === "employer_user"
+                      ? "Create your employer account to hire US tax professionals"
+                      : "Join tax professionals on Tax Talent Solution"}
                 </p>
               </div>
             </CardHeader>
@@ -328,68 +338,6 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                   </AlertDescription>
                 </Alert>
               )}
-
-              {/* Demo Credentials Panel */}
-              <div className="border border-primary/30 rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors text-sm font-medium text-primary"
-                  onClick={() => setShowDemoPanel(!showDemoPanel)}
-                >
-                  <span className="flex items-center gap-2">
-                    <KeyRound className="w-4 h-4" />
-                    Sample Login Credentials (Demo)
-                  </span>
-                  {showDemoPanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {showDemoPanel && (
-                  <div className="divide-y divide-border">
-                    {localCredentials.map((cred) => (
-                      <div key={cred.id} className="px-4 py-3 bg-white hover:bg-secondary/10 transition-colors">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="font-semibold text-sm text-foreground">{cred.name}</span>
-                              <Badge
-                                variant={cred.role === 'admin' ? 'default' : cred.role === 'employer_user' ? 'secondary' : 'outline'}
-                                className="text-xs capitalize"
-                              >
-                                {cred.role === 'employer_user' ? 'Employer' : cred.role}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-2">{cred.description}</p>
-                            <div className="space-y-1 text-xs font-mono">
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Mail className="w-3 h-3 shrink-0" />
-                                <span className="truncate">{cred.loginId}</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Lock className="w-3 h-3 shrink-0" />
-                                <span>{cred.password}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0 text-xs h-8"
-                            onClick={() => {
-                              setEmail(cred.loginId);
-                              setPassword(cred.password);
-                              setShowDemoPanel(false);
-                            }}
-                          >
-                            <Copy className="w-3 h-3 mr-1" />
-                            Use
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               {/* Social Login Options */}
               <div className="space-y-3">
@@ -446,7 +394,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
               <form onSubmit={handleEmailAuth} className="space-y-4">
                 {!isLogin && (
                   <>
-                    {/* Role Selector */}
+                    {!lockSignupRole && (
                     <div className="space-y-2">
                       <Label>I am a...</Label>
                       <div className="grid grid-cols-2 gap-3">
@@ -482,6 +430,7 @@ export function LoginPage({ onBack, onLocalLogin, onLinkedInMatch }: LoginPagePr
                         </button>
                       </div>
                     </div>
+                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name</Label>

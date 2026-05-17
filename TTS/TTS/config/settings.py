@@ -71,5 +71,19 @@ class Settings:
     def entra_enabled(self) -> bool:
         return self.entra["enabled"] and bool(self.entra["client_id"])
 
+    @property
+    def azure_storage_connection_string(self) -> str:
+        env_value = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "").strip()
+        if env_value:
+            return env_value
+        return self._config.get("AzureStorage", {}).get("ConnectionString", "")
+
+    @property
+    def azure_storage_container_name(self) -> str:
+        env_value = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "").strip()
+        if env_value:
+            return env_value
+        return self._config.get("AzureStorage", {}).get("ContainerName", "filecontainer")
+
 
 settings = Settings()

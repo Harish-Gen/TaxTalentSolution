@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { assetUrl } from "../utils/appPaths";
 import { loadProfile } from "../database/profileStore";
+import { useNotifications } from "../database";
+import { isUuid } from "../api/userAssessmentService";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Badge } from "./ui/badge";
@@ -42,14 +44,17 @@ type DashboardSection = "profile" | "competencies" | "matches" | "assessments" |
 interface ApplicationData {
   jobTitle: string;
   companyName: string;
+  jobPostingId?: string;
+  employerId?: string;
 }
 
 interface JobDetailsData {
-  jobId: number;
+  jobId: string;
 }
 
 export function Dashboard({ user, onLogout }: DashboardProps) {
   const [activeSection, setActiveSection] = useState<DashboardSection>("profile");
+  const [resumeUploadTrigger, setResumeUploadTrigger] = useState(0);
 
   const candidateName = useMemo(() => {
     if (user?.id) {
@@ -61,48 +66,25 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const [applicationData, setApplicationData] = useState<ApplicationData | null>(null);
   const [jobDetailsData, setJobDetailsData] = useState<JobDetailsData | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "job",
-      title: "New job match found",
-      body: "Senior Tax Analyst at Deloitte matches your profile.",
-      time: "2 min ago",
-      read: false,
-    },
-    {
-      id: 2,
-      type: "application",
-      title: "Application viewed",
-      body: "Grant Thornton viewed your application for Tax Manager.",
-      time: "1 hr ago",
-      read: false,
-    },
-    {
-      id: 3,
-      type: "assessment",
-      title: "Assessment available",
-      body: "A new 1040 competency assessment is ready for you.",
-      time: "3 hrs ago",
-      read: true,
-    },
-    {
-      id: 4,
-      type: "system",
-      title: "Profile completion",
-      body: "Add your certifications to reach 100% profile completeness.",
-      time: "Yesterday",
-      read: true,
-    },
-  ]);
+  const apiUserId = user?.id && isUuid(user.id) ? user.id : undefined;
+  const { notifications: apiNotifications, unreadCount } = useNotifications(apiUserId);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const notifications = apiNotifications.map((n) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.message || "",
+    time: new Date(n.created_at).toLocaleDateString(),
+    read: n.is_read,
+  }));
 
-  const markAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = () => {
+    /* API mark-read can be added per notification */
+  };
 
-  const dismissNotif = (id: number) =>
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const dismissNotif = (_id: string) => {
+    /* optional: call notificationService.upsert to deactivate */
+  };
 
   const notifIcon = (type: string) => {
     switch (type) {
@@ -117,15 +99,20 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     { id: "profile", label: "Profile", icon: User },
     { id: "competencies", label: "Competencies", icon: Award },
     { id: "assessments", label: "Assessments", icon: Award },
-    { id: "salary", label: "Salary Insights", icon: DollarSign },
+    // { id: "salary", label: "Salary Insights", icon: DollarSign },
     { id: "matches", label: "Best Matches", icon: Target },
     { id: "jobs", label: "Jobs", icon: Briefcase },
     { id: "status", label: "Status", icon: Activity },
     { id: "interview-feedback", label: "Interviews", icon: MessageSquare },
   ];
 
-  const handleJobApplication = (jobTitle: string, companyName: string) => {
-    setApplicationData({ jobTitle, companyName });
+  const handleJobApplication = (
+    jobTitle: string,
+    companyName: string,
+    jobPostingId?: string,
+    employerId?: string
+  ) => {
+    setApplicationData({ jobTitle, companyName, jobPostingId, employerId });
     setActiveSection("job-application");
   };
 
@@ -134,7 +121,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     setApplicationData(null);
   };
 
-  const handleViewJobDetails = (jobId: number) => {
+  const handleViewJobDetails = (jobId: string) => {
     setJobDetailsData({ jobId });
     setActiveSection("job-details");
   };
@@ -147,7 +134,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const renderContent = () => {
     switch (activeSection) {
       case "profile":
-        return <ProfilePage user={user} />;
+        return <ProfilePage user={user} resumeUploadTrigger={resumeUploadTrigger} />;
       case "competencies":
         return <Competencies user={user} />;
       case "matches":
@@ -157,7 +144,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       case "jobs":
         return <Jobs onJobApplication={handleJobApplication} onViewDetails={handleViewJobDetails} />;
       case "status":
-        return <StatusTracker />;
+        return <StatusTracker user={user} />;
       case "salary":
         return <SalaryInsights />;
       case "job-application":
@@ -165,6 +152,9 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           <JobApplication
             jobTitle={applicationData.jobTitle}
             companyName={applicationData.companyName}
+            jobPostingId={applicationData.jobPostingId}
+            employerId={applicationData.employerId}
+            user={user}
             onBack={handleBackFromApplication}
           />
         ) : (
@@ -185,7 +175,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       case "settings":
         return <Settings user={user} />;
       default:
-        return <ProfilePage user={user} />;
+        return <ProfilePage user={user} resumeUploadTrigger={resumeUploadTrigger} />;
     }
   };
 
@@ -371,7 +361,11 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               </div>
               <div className="flex items-center space-x-2">
                 {activeSection === "profile" && (
-                  <Button variant="default" size="sm">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setResumeUploadTrigger((n) => n + 1)}
+                  >
                     Upload Resume
                   </Button>
                 )}

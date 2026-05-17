@@ -1,13 +1,24 @@
 import { apiRequest } from './apiService';
 import type { Candidate as DBCandidate, CandidateStatus } from '../database/types';
 
-export interface BackendCandidate {
-  id: string;
+export interface BackendCandidateUser {
+  id?: string;
   name?: string;
   firstname?: string;
   lastname?: string;
   email?: string;
   phone?: string;
+}
+
+export interface BackendCandidate {
+  id: string;
+  userid?: string;
+  name?: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  phone?: string;
+  user?: BackendCandidateUser;
   location?: any;
   currenttitle?: string;
   experienceyrs?: number;
@@ -26,24 +37,79 @@ export interface BackendCandidate {
   modifiedon?: string;
 }
 
-function mapToDBCandidate(backend: BackendCandidate): DBCandidate & { name?: string; email?: string; phone?: string; firstname?: string; lastname?: string } {
+export function parseTaxExpertise(value?: string[] | string): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [value];
+    } catch {
+      return value.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function resolveCandidateName(backend: BackendCandidate): string {
+  const user = backend.user;
+  const fromParts = (first?: string, last?: string) =>
+    `${first || ''} ${last || ''}`.trim();
+
+  const direct =
+    backend.name?.trim() ||
+    fromParts(backend.firstname, backend.lastname) ||
+    user?.name?.trim() ||
+    fromParts(user?.firstname, user?.lastname);
+
+  if (direct) return direct;
+
+  const email = backend.email || user?.email;
+  if (email) {
+    const local = email.split('@')[0]?.replace(/[._]/g, ' ').trim();
+    if (local) {
+      return local.replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  }
+
+  return 'Candidate';
+}
+
+function mapToDBCandidate(backend: BackendCandidate): DBCandidate & {
+  name?: string;
+  email?: string;
+  phone?: string;
+  firstname?: string;
+  lastname?: string;
+  tax_expertise?: string[];
+} {
+  const backendAny = backend as BackendCandidate & {
+    locationcity?: string;
+    locationstate?: string;
+    locationcountry?: string;
+  };
   const isLocationObject = backend.location && typeof backend.location === 'object' && !Array.isArray(backend.location);
-  const city = isLocationObject ? backend.location.city : (typeof backend.location === 'string' ? backend.location : '');
-  const state = isLocationObject ? backend.location.state : '';
+  const city =
+    backendAny.locationcity ||
+    (isLocationObject ? backend.location.city : typeof backend.location === 'string' ? backend.location : '');
+  const state = backendAny.locationstate || (isLocationObject ? backend.location.state : '');
+  const country = backendAny.locationcountry || (isLocationObject ? backend.location.country : '') || 'IN';
+
+  const user = backend.user;
 
   return {
     id: backend.id,
-    user_id: '', 
-    name: backend.name || `${backend.firstname || ''} ${backend.lastname || ''}`.trim() || 'Unknown',
-    firstname: backend.firstname,
-    lastname: backend.lastname,
-    email: backend.email,
-    phone: backend.phone,
+    user_id: backend.userid || user?.id || '',
+    name: resolveCandidateName(backend),
+    firstname: backend.firstname || user?.firstname,
+    lastname: backend.lastname || user?.lastname,
+    email: backend.email || user?.email,
+    phone: backend.phone || user?.phone,
     headline: backend.currenttitle || '',
     summary: '', 
     location_city: city,
     location_state: state,
-    location_country: 'India',
+    location_country: country || 'IN',
     experience_years: backend.experienceyrs || 0,
     availability: (backend.availability as any) || 'immediate',
     work_mode: (backend.workmode as any) || 'remote',
@@ -55,12 +121,14 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & { name?: str
     rating: 0,
     created_at: backend.createdon || new Date().toISOString(),
     updated_at: backend.modifiedon || new Date().toISOString(),
+    tax_expertise: parseTaxExpertise(backend.taxexpertise),
   };
 }
 
-function mapToBackend(frontend: any): Partial<BackendCandidate> {
+function mapToBackend(frontend: any): Partial<BackendCandidate> & { userid?: string } {
   return {
     id: frontend.id,
+    userid: frontend.userid || frontend.user_id,
     name: frontend.name,
     firstname: frontend.firstname,
     lastname: frontend.lastname,
@@ -68,8 +136,12 @@ function mapToBackend(frontend: any): Partial<BackendCandidate> {
     phone: frontend.phone,
     location: {
       city: frontend.location_city || '',
-      state: frontend.location_state || ''
+      state: frontend.location_state || '',
+      country: frontend.location_country || 'IN',
     },
+    locationcity: frontend.location_city,
+    locationstate: frontend.location_state,
+    locationcountry: frontend.location_country || 'IN',
     currenttitle: frontend.headline,
     experienceyrs: frontend.experience_years,
     noticeperiod: frontend.noticeperiod || 90,
@@ -95,6 +167,22 @@ export const candidateService = {
   async getCandidateById(id: string): Promise<DBCandidate & { name?: string; email?: string; phone?: string }> {
     const data = await apiRequest<BackendCandidate>(`/api/candidates/${id}`);
     return mapToDBCandidate(data);
+  },
+
+  async getCandidateByUserId(
+    userId: string,
+    options?: { ensure?: boolean }
+  ): Promise<(DBCandidate & { name?: string; email?: string; phone?: string }) | null> {
+    try {
+      const query = options?.ensure ? '?ensure=true' : '';
+      const data = await apiRequest<BackendCandidate | null>(
+        `/api/candidates/user/${userId}${query}`
+      );
+      if (!data) return null;
+      return mapToDBCandidate(data);
+    } catch {
+      return null;
+    }
   },
 
   async upsertCandidate(candidate: Partial<DBCandidate> & { name?: string; phone?: string; email?: string; firstname?: string; lastname?: string }): Promise<DBCandidate & { name?: string; email?: string; phone?: string }> {

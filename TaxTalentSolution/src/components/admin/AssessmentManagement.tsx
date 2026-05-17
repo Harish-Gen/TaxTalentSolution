@@ -46,7 +46,9 @@ const DEFAULT_QUESTION_FORM = {
 };
 
 export function AssessmentManagement() {
-  const { assessments: dbAssessments, loading } = useAssessments();
+  const { assessments: dbAssessments, loading, refresh } = useAssessments({
+    candidateVisibleOnly: false,
+  });
   const [selectedAssessment, setSelectedAssessment] = useState<DBAssessment | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingAssessment, setEditingAssessment] = useState<DBAssessment | null>(null);
@@ -71,7 +73,7 @@ export function AssessmentManagement() {
     passingScore: 0,
     pointsPerQuestion: 0,
     description: "",
-    status: "draft"
+    status: "active"
   });
 
   const assessments = useMemo(() => {
@@ -157,7 +159,7 @@ export function AssessmentManagement() {
       passingScore: 0,
       pointsPerQuestion: 0,
       description: "",
-      status: "draft"
+      status: "active"
     });
     setEditingAssessment(null);
   };
@@ -198,9 +200,10 @@ export function AssessmentManagement() {
         status: editForm.status as any,
         is_active: true
       });
+      await refresh();
       toast.success(editingAssessment ? "Assessment updated" : "Assessment created");
       setShowCreateForm(false);
-      setEditingAssessment(null);
+      resetForm();
     } catch (error) {
       console.error("Failed to save assessment:", error);
       toast.error("Failed to save assessment");
@@ -210,6 +213,10 @@ export function AssessmentManagement() {
   const handleDelete = async (id: string) => {
     try {
       await assessmentService.deleteAssessment(id);
+      await refresh();
+      if (selectedAssessment?.id === id) {
+        setSelectedAssessment(null);
+      }
       toast.success("Assessment deleted");
     } catch (error) {
       console.error("Failed to delete assessment:", error);

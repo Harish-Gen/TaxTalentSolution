@@ -15,6 +15,14 @@ class AssessmentRepository(IAssessmentRepository):
         columns = [column[0] for column in cursor.description]
         return dict(zip(columns, row))
 
+    def _to_response(self, cursor, row) -> Optional[AssessmentResponse]:
+        data = self._row_to_dict(cursor, row)
+        if not data:
+            return None
+        allowed = set(AssessmentResponse.model_fields.keys())
+        filtered = {k: v for k, v in data.items() if k in allowed}
+        return AssessmentResponse(**filtered)
+
     def get_assessment_by_id(self, assessment_id: UUID, include_inactive: bool = False) -> Optional[AssessmentResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -23,18 +31,25 @@ class AssessmentRepository(IAssessmentRepository):
             else:
                 cursor.execute("SELECT * FROM assessments WHERE id = ? AND isactive = 1", str(assessment_id))
             row = cursor.fetchone()
-            data = self._row_to_dict(cursor, row)
-            return AssessmentResponse(**data) if data else None
+            return self._to_response(cursor, row)
 
     def get_all_assessments(self) -> List[AssessmentResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM assessments WHERE isactive = 1")
             rows = cursor.fetchall()
-            return [AssessmentResponse(**self._row_to_dict(cursor, row)) for row in rows]
+            results = []
+            for row in rows:
+                item = self._to_response(cursor, row)
+                if item:
+                    results.append(item)
+            return results
 
     def upsert_assessment(self, assessment: AssessmentCreateUpdate) -> AssessmentResponse:
         data = assessment.dict(exclude_unset=True)
+
+        if data.get('isactive') is None:
+            data['isactive'] = True
 
         assessment_id = data.pop('id', None)
 

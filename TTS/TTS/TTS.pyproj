@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>TTS</Name>
     <RootNamespace>TTS</RootNamespace>
-    <InterpreterId>MSBuild|env1|$(MSBuildProjectFullPath)</InterpreterId>
+    <InterpreterId>MSBuild|env3|$(MSBuildProjectFullPath)</InterpreterId>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <Environment>TTS_RELOAD=false;ENVIRONMENT=Development</Environment>
@@ -39,9 +39,17 @@
     <Compile Include="controllers\userassessment_controller.py" />
     <Compile Include="controllers\userassessmentanswer_controller.py" />
     <Compile Include="controllers\account_controller.py" />
+    <Compile Include="controllers\file_controller.py" />
+    <Compile Include="controllers\jobapplication_controller.py" />
+    <Compile Include="controllers\certificate_controller.py" />
+    <Compile Include="controllers\notification_controller.py" />
+    <Compile Include="controllers\savedcandidate_controller.py" />
+    <Compile Include="controllers\profileview_controller.py" />
+    <Compile Include="controllers\adminuser_controller.py" />
     <Compile Include="run_api_debug.py" />
     <Compile Include="utils\__init__.py" />
     <Compile Include="utils\entra_auth.py" />
+    <Compile Include="utils\blob_storage.py" />
     <Compile Include="utils\entra_claims.py" />
     <Compile Include="interfaces\__init__.py" />
     <Compile Include="interfaces\icandidate_repository.py" />
@@ -53,6 +61,12 @@
     <Compile Include="interfaces\iusercompetency_repository.py" />
     <Compile Include="interfaces\iuserassessment_repository.py" />
     <Compile Include="interfaces\iuserassessmentanswer_repository.py" />
+    <Compile Include="interfaces\ijobapplication_repository.py" />
+    <Compile Include="interfaces\icertificate_repository.py" />
+    <Compile Include="interfaces\inotification_repository.py" />
+    <Compile Include="interfaces\isavedcandidate_repository.py" />
+    <Compile Include="interfaces\iprofileview_repository.py" />
+    <Compile Include="interfaces\iadminuser_repository.py" />
     <Compile Include="models\__init__.py" />
     <Compile Include="models\candidate.py" />
     <Compile Include="models\assessment.py" />
@@ -63,6 +77,12 @@
     <Compile Include="models\usercompetency.py" />
     <Compile Include="models\userassessment.py" />
     <Compile Include="models\userassessmentanswer.py" />
+    <Compile Include="models\jobapplication.py" />
+    <Compile Include="models\certificate.py" />
+    <Compile Include="models\notification.py" />
+    <Compile Include="models\savedcandidate.py" />
+    <Compile Include="models\profileview.py" />
+    <Compile Include="models\adminuser.py" />
     <Compile Include="repository\__init__.py" />
     <Compile Include="repository\candidate_repository.py" />
     <Compile Include="repository\assessment_repository.py" />
@@ -73,6 +93,12 @@
     <Compile Include="repository\usercompetency_repository.py" />
     <Compile Include="repository\userassessment_repository.py" />
     <Compile Include="repository\userassessmentanswer_repository.py" />
+    <Compile Include="repository\jobapplication_repository.py" />
+    <Compile Include="repository\certificate_repository.py" />
+    <Compile Include="repository\notification_repository.py" />
+    <Compile Include="repository\savedcandidate_repository.py" />
+    <Compile Include="repository\profileview_repository.py" />
+    <Compile Include="repository\adminuser_repository.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="config\" />
@@ -95,6 +121,24 @@
       <Id>env1</Id>
       <Version>3.10</Version>
       <Description>env1 (Python 3.10 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
+    <Interpreter Include="env2\">
+      <Id>env2</Id>
+      <Version>3.10</Version>
+      <Description>env2 (Python 3.10 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
+    <Interpreter Include="env3\">
+      <Id>env3</Id>
+      <Version>3.10</Version>
+      <Description>env3 (Python 3.10 (64-bit))</Description>
       <InterpreterPath>Scripts\python.exe</InterpreterPath>
       <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
       <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>

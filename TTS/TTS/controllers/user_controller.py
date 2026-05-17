@@ -3,7 +3,9 @@ from typing import List
 from uuid import UUID
 from interfaces.iuser_repository import IUserRepository
 from repository.user_repository import UserRepository
+from repository.candidate_repository import CandidateRepository
 from models.user import UserCreateUpdate, UserResponse, UserLogin, UserLoginResponse
+from config.settings import settings
 
 router = APIRouter(
     prefix="/api/users",
@@ -22,7 +24,15 @@ def login_user(login_data: UserLogin, repo: IUserRepository = Depends(get_user_r
         user = repo.get_user_by_email(login_data.email)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or user not found")
-        
+
+        role_name = user.role.get("name") if user.role else ""
+        is_candidate = (
+            str(user.roleid).upper() == settings.default_candidate_role_id.upper()
+            or str(role_name).lower() == "candidate"
+        )
+        if is_candidate:
+            CandidateRepository().ensure_candidate_for_user(user.id)
+
         return UserLoginResponse(
             message="Login successful",
             user=user

@@ -20,13 +20,21 @@ import {
   Mail,
   Loader2
 } from "lucide-react";
-import { useCandidateApplications, useJobs, useEmployers, useInterviews } from "../../database";
+import {
+  useUserApplications,
+  useJobs,
+  useEmployers,
+  useInterviews,
+} from "../../database";
 
-export function StatusTracker() {
+interface StatusTrackerProps {
+  user?: { id?: string };
+}
+
+export function StatusTracker({ user }: StatusTrackerProps) {
   const [activeTab, setActiveTab] = useState("applications");
-  
-  // Use database hooks - for demo, using candidate ID 1
-  const { applications: dbApplications, loading: appsLoading } = useCandidateApplications(1);
+  const userId = user?.id as string | undefined;
+  const { applications: dbApplications, loading: appsLoading } = useUserApplications(userId);
   const { jobs, loading: jobsLoading } = useJobs();
   const { employers, loading: employersLoading } = useEmployers();
   const { interviews } = useInterviews();
@@ -35,8 +43,8 @@ export function StatusTracker() {
 
   // Transform database applications to display format
   const transformedApplications = dbApplications.map(app => {
-    const job = jobs.find(j => j.id === app.jobId);
-    const employer = employers.find(e => e.id === job?.employerId);
+    const job = jobs.find((j) => j.id === app.job_id);
+    const employer = employers.find((e) => e.id === (job?.employer_id || app.employer_id));
     const interview = interviews.find(i => i.applicationId === app.id);
     
     const getProgress = (status: string) => {
@@ -78,18 +86,18 @@ export function StatusTracker() {
     return {
       id: app.id,
       jobTitle: job?.title || 'Unknown Position',
-      company: employer?.companyName || 'Unknown Company',
-      appliedDate: new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      company: employer?.company_name || 'Unknown Company',
+      appliedDate: new Date(app.applied_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       status: getDisplayStatus(app.status),
       stage: getStage(app.status),
       progress: getProgress(app.status),
       nextStep: interview ? `Interview on ${new Date(interview.scheduledAt).toLocaleDateString()}` : 'Waiting for response',
       recruiterContact: "Recruiter",
-      recruiterEmail: `hr@${employer?.companyName?.toLowerCase().replace(/\s+/g, '')}.com`,
+      recruiterEmail: employer?.email || '',
       interviewType: interview?.interviewType || undefined,
       interviewTime: interview ? new Date(interview.scheduledAt).toLocaleString() : undefined,
       statusHistory: [
-        { date: new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), action: "Application Submitted", status: "completed" },
+        { date: new Date(app.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), action: "Application Submitted", status: "completed" },
         { date: app.status !== 'submitted' ? "Done" : "TBD", action: "Application Reviewed", status: app.status !== 'submitted' ? "completed" : "pending" },
         { date: interview ? new Date(interview.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "TBD", action: "Interview", status: interview ? "upcoming" : "pending" },
         { date: "TBD", action: "Decision", status: "pending" }
@@ -97,124 +105,14 @@ export function StatusTracker() {
     };
   });
 
-  // Fallback to hardcoded data if no database data
-  const applications = transformedApplications.length > 0 ? transformedApplications : [
-    {
-      id: 1,
-      jobTitle: "Senior Tax Associate",
-      company: "Deloitte India",
-      appliedDate: "March 10, 2024",
-      status: "Interview Scheduled",
-      stage: "interview",
-      progress: 75,
-      nextStep: "Technical Interview on March 18, 2024",
-      recruiterContact: "Sarah Johnson",
-      recruiterEmail: "sarah.johnson@deloitte.com",
-      interviewType: "Video Call",
-      interviewTime: "March 18, 2024 at 2:00 PM IST",
-      statusHistory: [
-        { date: "March 10", action: "Application Submitted", status: "completed" },
-        { date: "March 12", action: "Application Reviewed", status: "completed" },
-        { date: "March 14", action: "HR Screening Call", status: "completed" },
-        { date: "March 18", action: "Technical Interview", status: "upcoming" },
-        { date: "TBD", action: "Final Interview", status: "pending" },
-        { date: "TBD", action: "Decision", status: "pending" }
-      ]
-    },
-    {
-      id: 2,
-      jobTitle: "US Tax Manager",
-      company: "EY GDS",
-      appliedDate: "March 8, 2024",
-      status: "Under Review",
-      stage: "review",
-      progress: 40,
-      nextStep: "Awaiting recruiter response",
-      recruiterContact: "Michael Chen",
-      recruiterEmail: "michael.chen@ey.com",
-      statusHistory: [
-        { date: "March 8", action: "Application Submitted", status: "completed" },
-        { date: "March 10", action: "Application Reviewed", status: "completed" },
-        { date: "TBD", action: "HR Screening", status: "pending" },
-        { date: "TBD", action: "Technical Interview", status: "pending" },
-        { date: "TBD", action: "Final Interview", status: "pending" },
-        { date: "TBD", action: "Decision", status: "pending" }
-      ]
-    },
-    {
-      id: 3,
-      jobTitle: "Tax Consultant",
-      company: "KPMG India",
-      appliedDate: "March 5, 2024",
-      status: "Rejected",
-      stage: "rejected",
-      progress: 100,
-      nextStep: "Application closed",
-      feedback: "Strong technical skills but looking for more partnership experience",
-      statusHistory: [
-        { date: "March 5", action: "Application Submitted", status: "completed" },
-        { date: "March 7", action: "Application Reviewed", status: "completed" },
-        { date: "March 9", action: "HR Screening Call", status: "completed" },
-        { date: "March 12", action: "Decision - Not Selected", status: "rejected" }
-      ]
-    },
-    {
-      id: 4,
-      jobTitle: "Senior Tax Analyst",
-      company: "Genpact",
-      appliedDate: "March 15, 2024",
-      status: "Application Submitted",
-      stage: "submitted",
-      progress: 20,
-      nextStep: "Waiting for initial review",
-      statusHistory: [
-        { date: "March 15", action: "Application Submitted", status: "completed" },
-        { date: "TBD", action: "Application Review", status: "pending" },
-        { date: "TBD", action: "HR Screening", status: "pending" },
-        { date: "TBD", action: "Technical Interview", status: "pending" },
-        { date: "TBD", action: "Final Interview", status: "pending" },
-        { date: "TBD", action: "Decision", status: "pending" }
-      ]
-    }
-  ];
-
-  const profileViews = [
-    {
-      date: "March 16, 2024",
-      company: "Accenture India",
-      recruiter: "Jessica Williams",
-      position: "HR Manager",
-      viewType: "Full Profile"
-    },
-    {
-      date: "March 15, 2024",
-      company: "Wipro",
-      recruiter: "Rajesh Kumar",
-      position: "Talent Acquisition",
-      viewType: "Basic Profile"
-    },
-    {
-      date: "March 14, 2024",
-      company: "TCS",
-      recruiter: "Priya Sharma",
-      position: "Senior Recruiter",
-      viewType: "Full Profile"
-    },
-    {
-      date: "March 12, 2024",
-      company: "Infosys",
-      recruiter: "David Miller",
-      position: "Recruitment Lead",
-      viewType: "Skills Only"
-    },
-    {
-      date: "March 10, 2024",
-      company: "Cognizant",
-      recruiter: "Lisa Thompson",
-      position: "HR Business Partner",
-      viewType: "Full Profile"
-    }
-  ];
+  const applications = transformedApplications;
+  const profileViews: Array<{
+    date: string;
+    company: string;
+    recruiter: string;
+    position: string;
+    viewType: string;
+  }> = [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -275,28 +173,28 @@ export function StatusTracker() {
         <Card>
           <CardContent className="p-4 text-center">
             <FileText className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">4</div>
+            <div className="text-2xl font-bold">{applications.length}</div>
             <div className="text-sm text-muted-foreground">Active Applications</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <Eye className="w-8 h-8 text-green-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">12</div>
-            <div className="text-sm text-muted-foreground">Profile Views (7 days)</div>
+            <div className="text-2xl font-bold">{profileViews.length}</div>
+            <div className="text-sm text-muted-foreground">Profile Views</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <Video className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">{interviews.length}</div>
             <div className="text-sm text-muted-foreground">Interviews Scheduled</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <MessageSquare className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">0</div>
             <div className="text-sm text-muted-foreground">Recruiter Messages</div>
           </CardContent>
         </Card>

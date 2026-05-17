@@ -41,6 +41,45 @@ function mapToFrontend(backend: BackendQuestion): FrontendQuestion {
   };
 }
 
+export interface ExamQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  topic: string;
+}
+
+export function mapFrontendQuestionsToExam(questions: FrontendQuestion[]): ExamQuestion[] {
+  return questions
+    .filter((q) => q.type === 'multiple-choice' && (q.options?.length ?? 0) >= 2)
+    .map((q, index) => {
+      const options = q.options!;
+      let correctIndex = 0;
+      if (q.correctAnswer) {
+        const byText = options.findIndex((o) => o.trim() === q.correctAnswer!.trim());
+        if (byText >= 0) {
+          correctIndex = byText;
+        } else {
+          const numeric = parseInt(q.correctAnswer, 10);
+          if (!Number.isNaN(numeric) && numeric >= 0 && numeric < options.length) {
+            correctIndex = numeric;
+          }
+        }
+      }
+      return {
+        id: index + 1,
+        question: q.question,
+        options,
+        correctAnswer: correctIndex,
+        explanation: '',
+        difficulty: 'Easy',
+        topic: q.type,
+      };
+    });
+}
+
 export const questionService = {
   async getQuestionsByAssessment(assessmentId: string): Promise<FrontendQuestion[]> {
     const data = await apiRequest<BackendQuestion[]>(`/api/questions/assessment/${assessmentId}`);

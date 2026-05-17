@@ -9,6 +9,7 @@ export interface BackendUser {
   roleid?: string;
   isactive?: boolean;
   employer_ids?: string[];
+  employers?: Array<{ id?: string; name?: string; contactperson?: string; companyname?: string }>;
   role?: {
     id: string;
     name: string;
@@ -45,6 +46,14 @@ const REVERSE_ROLE_MAP: Record<string, 'admin' | 'manager' | 'viewer'> = {
 };
 
 function mapToFrontendUser(backend: BackendUser): any {
+  const employerIdsFromRows = (backend.employers || [])
+    .map((e) => e.id)
+    .filter(Boolean) as string[];
+  const assignedEmployers =
+    backend.employer_ids?.length
+      ? backend.employer_ids
+      : employerIdsFromRows;
+
   return {
     id: backend.id,
     name: backend.name || '',
@@ -52,10 +61,12 @@ function mapToFrontendUser(backend: BackendUser): any {
     phone: backend.phone || '',
     role: backend.role?.name || (backend.roleid ? (REVERSE_ROLE_MAP[backend.roleid] || 'viewer') : 'viewer'),
     status: backend.isactive ? 'active' : 'inactive',
-    assignedEmployers: backend.employer_ids || [],
-    permissions: [], // Permissions will be calculated on frontend based on role
-    joinedDate: new Date().toISOString().split('T')[0], // Mock joined date
-    lastLogin: 'Never' // Mock last login
+    assignedEmployers,
+    employers: backend.employers || [],
+    companyName: backend.employers?.[0]?.name || '',
+    permissions: [],
+    joinedDate: new Date().toISOString().split('T')[0],
+    lastLogin: undefined as string | undefined,
   };
 }
 

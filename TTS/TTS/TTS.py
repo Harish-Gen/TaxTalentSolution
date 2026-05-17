@@ -17,6 +17,13 @@ from controllers.question_controller import router as question_router
 from controllers.usercompetency_controller import router as usercompetency_router
 from controllers.userassessment_controller import router as userassessment_router
 from controllers.userassessmentanswer_controller import router as userassessmentanswer_router
+from controllers.file_controller import router as file_router
+from controllers.jobapplication_controller import router as jobapplication_router
+from controllers.certificate_controller import router as certificate_router
+from controllers.notification_controller import router as notification_router
+from controllers.savedcandidate_controller import router as savedcandidate_router
+from controllers.profileview_controller import router as profileview_router
+from controllers.adminuser_controller import router as adminuser_router
 
 app = FastAPI(title="TTS API Endpoints", description="A structured FastAPI application with Repository Pattern")
 
@@ -38,6 +45,13 @@ app.include_router(question_router)
 app.include_router(usercompetency_router)
 app.include_router(userassessment_router)
 app.include_router(userassessmentanswer_router)
+app.include_router(file_router)
+app.include_router(jobapplication_router)
+app.include_router(certificate_router)
+app.include_router(notification_router)
+app.include_router(savedcandidate_router)
+app.include_router(profileview_router)
+app.include_router(adminuser_router)
 
 
 def _ui_static_directory() -> Path:

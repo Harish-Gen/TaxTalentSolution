@@ -3,6 +3,8 @@ import { API_BASE_URL } from "../utils/entra/config";
 
 export interface SignUpOrSignInRequest {
   Token: string;
+  /** Applied only when creating a new user: "candidate" | "employer" */
+  Role?: string;
 }
 
 export interface SignUpOrSignInResponse {
@@ -15,22 +17,27 @@ export interface SignUpOrSignInResponse {
     email?: string;
     name?: string;
     role?: string;
-    roleid?: string;
+    roleid?: string | null;
   };
   message?: string;
 }
 
 export async function signUpOrSignIn(
-  idToken: string
+  idToken: string,
+  signupRole?: "candidate" | "employer"
 ): Promise<SignUpOrSignInResponse> {
   const url = `${API_BASE_URL}/api/account/sign-up-or-sign-in`;
+  const body: SignUpOrSignInRequest = { Token: idToken };
+  if (signupRole) {
+    body.Role = signupRole;
+  }
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({ Token: idToken }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

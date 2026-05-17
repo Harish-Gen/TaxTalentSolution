@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { jobApplicationService } from "../../api/jobApplicationService";
+import { candidateService } from "../../api/candidateService";
+import { isUuid } from "../../api/userAssessmentService";
+import { resolveStorageDownloadUrl } from "../../api/fileService";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
@@ -7,14 +11,23 @@ import { Textarea } from "../ui/textarea";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { ArrowLeft, ExternalLink, Send, CheckCircle, Upload, FileText, X, IndianRupee, User, Briefcase, Percent, Plus, Trash2, Download } from "lucide-react";
+import { ArrowLeft, ExternalLink, Send, CheckCircle, Upload, IndianRupee, User, Briefcase, Percent, Plus, Trash2, Download } from "lucide-react";
 import { toast } from "sonner@2.0.3";
+import {
+  StorageFileUpload,
+  type UploadedStorageFile,
+} from "../ui/storage-file-upload";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
+
+type JsPdfWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
 
 interface JobApplicationProps {
   jobTitle: string;
   companyName: string;
+  jobPostingId?: string;
+  employerId?: string;
+  user?: { id?: string; email?: string };
   onBack: () => void;
   isCompetencyMode?: boolean;
 }
@@ -31,7 +44,15 @@ interface RoleEntry {
   percentage: string;
 }
 
-export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode = false }: JobApplicationProps) {
+export function JobApplication({
+  jobTitle,
+  companyName,
+  jobPostingId,
+  employerId,
+  user,
+  onBack,
+  isCompetencyMode = false,
+}: JobApplicationProps) {
   const [linkedinProfile, setLinkedinProfile] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,7 +64,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
   const [currentCompensation, setCurrentCompensation] = useState("");
   const [compensationRevisedDate, setCompensationRevisedDate] = useState("");
   const [expectedCompensation, setExpectedCompensation] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedResume, setUploadedResume] = useState<UploadedStorageFile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -132,47 +153,8 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
     return responsibilities.filter(r => !selectedResponsibilities.includes(r));
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Validate file type
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ];
-      
-      if (!allowedTypes.includes(file.type)) {
-        toast.error("Please upload a PDF or Word document");
-        return;
-      }
-
-      // Validate file size (5MB max)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-      if (file.size > maxSize) {
-        toast.error("File size must be less than 5MB");
-        return;
-      }
-
-      setSelectedFile(file);
-      toast.success("Resume uploaded successfully");
-    }
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
   const generatePDF = (applicationData: any) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF() as JsPdfWithAutoTable;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 20;
@@ -222,7 +204,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
       typeof level === 'string' ? level.charAt(0).toUpperCase() + level.slice(1).replace('-', ' ') : level
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: yPosition,
       head: [['Skill', 'Proficiency Level']],
       body: skillData,
@@ -232,7 +214,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
       styles: { fontSize: 9 }
     });
 
-    yPosition = (doc as any).lastAutoTable.finalY + 10;
+    yPosition = (doc.lastAutoTable?.finalY ?? yPosition) + 10;
 
     // Why Hire Me Section
     if (yPosition > pageHeight - 60) {
@@ -263,7 +245,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
       `${percentage}%`
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: yPosition,
       head: [['Responsibility', 'Percentage']],
       body: roleData,
@@ -273,7 +255,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
       styles: { fontSize: 9 }
     });
 
-    yPosition = (doc as any).lastAutoTable.finalY + 10;
+    yPosition = (doc.lastAutoTable?.finalY ?? yPosition) + 10;
 
     // Compensation Section
     if (yPosition > pageHeight - 40) {
@@ -409,68 +391,12 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
     return true;
   };
 
-  const handleDemoPreview = () => {
-    // Create sample data for demo
-    const demoApplicationData = {
-      jobTitle: jobTitle || "Senior Tax Analyst - 1040 Specialist",
-      companyName: companyName || "TaxPro Solutions Inc.",
-      email: "john.doe@example.com",
-      phone: "9876543210",
-      linkedinProfile: "https://linkedin.com/in/johndoe-tax-professional",
-      skillRatings: {
-        "1040 - Individual": "expert",
-        "1040 - HNI": "intermediate",
-        "Schedule C": "expert",
-        "Schedule D": "advanced",
-        "Multi-State Returns": "intermediate"
-      },
-      whyHireMe: "With over 8 years of specialized experience in US Individual Tax (1040) preparation and review, I bring a comprehensive understanding of complex tax scenarios including HNI clients, multi-state returns, and investment portfolios. My expertise extends to handling Schedule C business income, Schedule D capital gains, and various credits and deductions. I have successfully prepared and reviewed over 2,000 tax returns with a 99.8% accuracy rate. My strong analytical skills, attention to detail, and commitment to staying updated with the latest tax regulations make me an ideal candidate for this position. I am proficient in using various tax software including Drake, Lacerte, and ProSeries, and have experience mentoring junior team members.",
-      roleDistribution: {
-        "Preparation": "30",
-        "First Level Review": "25",
-        "Second Level Review": "20",
-        "Managing Teams": "15",
-        "Client Management": "10"
-      },
-      compensation: {
-        current: "12,50,000",
-        revisedDate: "2024-04",
-        expected: "16,00,000"
-      },
-      resume: {
-        name: "John_Doe_Tax_Resume.pdf",
-        size: 245678,
-        type: "application/pdf"
-      },
-      submittedAt: new Date().toISOString()
-    };
-
-    try {
-      // Generate and download demo PDF
-      const pdf = generatePDF(demoApplicationData);
-      pdf.save(`DEMO-job-application-${demoApplicationData.jobTitle.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.pdf`);
-      
-      // Generate and download demo JSON
-      downloadJSON({ ...demoApplicationData, isDemoData: true });
-      
-      toast.success("Demo files generated! Check your downloads folder for PDF and JSON.", {
-        duration: 5000
-      });
-    } catch (error) {
-      toast.error("Failed to generate demo files. Please try again.");
-    }
-  };
-
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    
-    // Simulate API call
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Here you would normally send the application data to your backend
       const roleDistribution = roleEntries.reduce((acc, entry) => {
         acc[entry.responsibility] = entry.percentage;
         return acc;
@@ -490,16 +416,50 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
           revisedDate: compensationRevisedDate,
           expected: expectedCompensation
         },
-        resume: selectedFile ? {
-          name: selectedFile.name,
-          size: selectedFile.size,
-          type: selectedFile.type
-        } : null,
+        resume: uploadedResume
+          ? {
+              name: uploadedResume.displayName,
+              size: uploadedResume.size,
+              blobName: uploadedResume.blobName,
+            }
+          : null,
         submittedAt: new Date().toISOString()
       };
       
-      console.log("Application submitted:", applicationData);
-      
+      const userId = user?.id;
+      if (
+        userId &&
+        isUuid(userId) &&
+        jobPostingId &&
+        employerId &&
+        isUuid(jobPostingId) &&
+        isUuid(employerId)
+      ) {
+        let candidate = await candidateService.getCandidateByUserId(userId, { ensure: true });
+        if (!candidate) {
+          candidate = await candidateService.upsertCandidate({
+            userid: userId,
+            email: email || user.email,
+            phone,
+            resumeurl: uploadedResume ? resolveStorageDownloadUrl(uploadedResume.blobName) : undefined,
+            status: "pending",
+          } as any);
+        }
+        if (candidate?.id) {
+          await jobApplicationService.submit({
+            jobpostingid: jobPostingId,
+            candidateid: candidate.id,
+            userid: userId,
+            employerid: employerId,
+            coverletter: whyHireMe,
+            resumeurl: uploadedResume ? resolveStorageDownloadUrl(uploadedResume.blobName) : undefined,
+            currentcompensation: currentCompensation ? Number(currentCompensation) : undefined,
+            expectedcompensation: expectedCompensation ? Number(expectedCompensation) : undefined,
+            notes: JSON.stringify({ skillRatings, roleDistribution, linkedinProfile }),
+          });
+        }
+      }
+
       // Generate and download PDF
       const pdf = generatePDF(applicationData);
       pdf.save(`job-application-${jobTitle.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.pdf`);
@@ -510,7 +470,12 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
       setIsSubmitted(true);
       toast.success("Application submitted successfully! PDF and JSON files downloaded.");
     } catch (error) {
-      toast.error("Failed to submit application. Please try again.");
+      const detail = error instanceof Error ? error.message : "";
+      const message =
+        /already applied/i.test(detail)
+          ? "You have already applied to this job. View it under Status."
+          : detail || "Failed to submit application. Please try again.";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -990,82 +955,14 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!selectedFile ? (
-            <div className="space-y-4">
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-muted-foreground/50 transition-colors">
-                <div className="space-y-3">
-                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                    <Upload className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm mb-1">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">
-                      PDF, DOC, or DOCX files up to 5MB
-                    </p>
-                  </div>
-                </div>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => document.querySelector('input[type="file"]')?.click()}
-                  className="w-full sm:w-auto"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Choose File
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm truncate">{selectedFile.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(selectedFile.size)}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={removeFile}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" />
-                  File uploaded successfully
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.querySelector('input[type="file"]')?.click()}
-                >
-                  Replace File
-                </Button>
-              </div>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          )}
+          <StorageFileUpload
+            folder="applications/resumes"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            maxSizeMb={5}
+            hint="PDF, DOC, or DOCX files up to 5MB"
+            value={uploadedResume}
+            onChange={setUploadedResume}
+          />
           
           <div className="bg-blue-50 rounded-lg p-3 text-sm space-y-1">
             <h4 className="text-blue-900">Tips for a great resume:</h4>
@@ -1114,22 +1011,7 @@ export function JobApplication({ jobTitle, companyName, onBack, isCompetencyMode
                 </>
               )}
               </Button>
-              
-              <Button 
-                onClick={handleDemoPreview}
-                disabled={isSubmitting}
-                variant="outline"
-                className="flex-1 sm:flex-none sm:w-auto"
-                size="lg"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Preview PDF & JSON (Demo)
-              </Button>
             </div>
-            
-            <p className="text-xs text-muted-foreground mt-3">
-              💡 Not sure what the output looks like? Click "Preview PDF & JSON (Demo)" to see sample files before submitting.
-            </p>
           </div>
         </CardContent>
       </Card>

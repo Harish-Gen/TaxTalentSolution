@@ -10,6 +10,9 @@ class CandidateCreateUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     location: Optional[Union[Dict, str]] = None
+    locationcity: Optional[str] = None
+    locationstate: Optional[str] = None
+    locationcountry: Optional[str] = None
     currenttitle: Optional[str] = None
     experienceyrs: Optional[float] = None
     noticeperiod: Optional[int] = None

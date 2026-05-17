@@ -5,8 +5,21 @@ import {
 } from "../../api/entraConfigService";
 import { appRootUrl } from "../appPaths";
 import { getEntraRedirectUri } from "./config";
+import {
+  clearSignupIntent,
+  setSignupIntent,
+  type SignupIntentRole,
+} from "./signupIntent";
 
-export async function redirectToEntraSignIn(): Promise<void> {
+export async function redirectToEntraSignIn(
+  signupRole?: SignupIntentRole
+): Promise<void> {
+  if (signupRole) {
+    setSignupIntent(signupRole);
+  } else {
+    clearSignupIntent();
+  }
+
   const config = await fetchEntraConfig();
   if (!config.Enabled) {
     throw new Error(
@@ -18,12 +31,14 @@ export async function redirectToEntraSignIn(): Promise<void> {
 }
 
 /** Header / Get Started / Login — Entra when enabled, otherwise caller shows login page. */
-export async function startSignInFlow(): Promise<"entra" | "local"> {
+export async function startSignInFlow(options?: {
+  signupRole?: SignupIntentRole;
+}): Promise<"entra" | "local"> {
   try {
     if (!(await isEntraEnabled())) {
       return "local";
     }
-    await redirectToEntraSignIn();
+    await redirectToEntraSignIn(options?.signupRole);
     return "entra";
   } catch {
     return "local";
