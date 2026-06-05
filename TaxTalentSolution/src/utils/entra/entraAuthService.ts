@@ -14,6 +14,12 @@ import { clearAuthSession } from "./tokenUtils";
 
 export type EntraAuthMode = "login" | "signup";
 
+function withCreateAccountPrompt(authorizeUrl: string): string {
+  const url = new URL(authorizeUrl);
+  url.searchParams.set("prompt", "create");
+  return url.toString();
+}
+
 export function isAuthBridgeReturnUrl(): boolean {
   const auth = new URLSearchParams(window.location.search).get("auth");
   return auth === "login" || auth === "signup";
@@ -57,7 +63,10 @@ export async function redirectToEntraSignIn(options?: {
     getEntraRedirectUri(),
     forSignup
   );
-  window.location.assign(AuthorizeUrl);
+  const authorizeUrl = forSignup
+    ? withCreateAccountPrompt(AuthorizeUrl)
+    : AuthorizeUrl;
+  window.location.assign(authorizeUrl);
 }
 
 export async function startSignInFlow(options?: {
