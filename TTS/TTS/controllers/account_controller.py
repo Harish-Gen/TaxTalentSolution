@@ -1,7 +1,7 @@
 import base64
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
 from pydantic import BaseModel
 from uuid import UUID
@@ -97,10 +97,7 @@ def get_entra_config():
 
 
 @router.get("/entra-login-url", response_model=EntraLoginUrlResponse)
-def get_entra_login_url(
-    redirect_uri: Optional[str] = None,
-    for_signup: bool = Query(False),
-):
+def get_entra_login_url(redirect_uri: Optional[str] = None):
     """Build the Microsoft Entra authorize URL server-side."""
     if not settings.entra_enabled:
         raise HTTPException(
@@ -109,9 +106,7 @@ def get_entra_login_url(
         )
     resolved_redirect = redirect_uri or settings.entra["redirect_uri"]
     return EntraLoginUrlResponse(
-        AuthorizeUrl=build_entra_authorize_url(
-            resolved_redirect, for_signup=for_signup
-        ),
+        AuthorizeUrl=build_entra_authorize_url(resolved_redirect),
         RedirectUri=resolved_redirect,
     )
 

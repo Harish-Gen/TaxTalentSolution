@@ -3,9 +3,7 @@ from urllib.parse import urlencode
 from config.settings import settings
 
 
-def build_entra_authorize_url(
-    redirect_uri: str | None = None, *, for_signup: bool = False
-) -> str:
+def build_entra_authorize_url(redirect_uri: str | None = None) -> str:
     """Build CIAM authorize URL from appsettings Entra section."""
     entra = settings.entra
     tenant = entra["tenant_name"]
@@ -20,13 +18,9 @@ def build_entra_authorize_url(
         "response_type": entra["response_type"],
         "redirect_uri": redirect,
     }
-    if for_signup:
-        params["prompt"] = "create"
-        params["screen_hint"] = "signup"
-    else:
-        prompt = entra.get("prompt")
-        if prompt:
-            params["prompt"] = prompt
+    prompt = entra.get("prompt")
+    if prompt:
+        params["prompt"] = prompt
 
     query = urlencode(params)
     return (
