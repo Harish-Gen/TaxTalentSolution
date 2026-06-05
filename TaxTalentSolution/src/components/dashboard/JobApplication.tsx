@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jobApplicationService } from "../../api/jobApplicationService";
 import { candidateService } from "../../api/candidateService";
 import { isUuid } from "../../api/userAssessmentService";
@@ -19,6 +19,7 @@ import {
 } from "../ui/storage-file-upload";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { loadJobApplicationPrefill } from "../../utils/jobApplicationPrefill";
 
 type JsPdfWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
 
@@ -27,7 +28,12 @@ interface JobApplicationProps {
   companyName: string;
   jobPostingId?: string;
   employerId?: string;
-  user?: { id?: string; email?: string };
+  user?: {
+    id?: string;
+    email?: string;
+    phone?: string;
+    user_metadata?: { name?: string; phone?: string };
+  };
   onBack: () => void;
   isCompetencyMode?: boolean;
 }
@@ -67,6 +73,55 @@ export function JobApplication({
   const [uploadedResume, setUploadedResume] = useState<UploadedStorageFile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoadingPrefill, setIsLoadingPrefill] = useState(true);
+  const prefillAppliedRef = useRef(false);
+
+  const userId = user?.id ?? "guest";
+
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+
+    let cancelled = false;
+    const applyPrefill = async () => {
+      setIsLoadingPrefill(true);
+      try {
+        const prefill = await loadJobApplicationPrefill(userId, user);
+        if (cancelled) return;
+
+        setLinkedinProfile(prefill.linkedinProfile);
+        setEmail(prefill.email);
+        setPhone(prefill.phone);
+        setSkillRatings(prefill.skillRatings);
+        setWhyHireMe(prefill.whyHireMe);
+        setRoleEntries(prefill.roleEntries);
+        setCurrentCompensation(prefill.currentCompensation);
+        setExpectedCompensation(prefill.expectedCompensation);
+        setCompensationRevisedDate(prefill.compensationRevisedDate);
+        setUploadedResume(prefill.resume);
+
+        prefillAppliedRef.current = true;
+
+        const hasProfileData =
+          Boolean(prefill.email || prefill.phone || prefill.linkedinProfile) ||
+          Object.keys(prefill.skillRatings).length > 0 ||
+          Boolean(prefill.whyHireMe) ||
+          prefill.roleEntries.some((e) => e.responsibility && e.percentage);
+
+        if (hasProfileData) {
+          toast.success("Application pre-filled from your profile");
+        }
+      } catch (err) {
+        console.error("Failed to load application prefill:", err);
+      } finally {
+        if (!cancelled) setIsLoadingPrefill(false);
+      }
+    };
+
+    applyPrefill();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, user]);
 
   const skills = [
     "1040HNI",
@@ -527,6 +582,13 @@ export function JobApplication({
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {isLoadingPrefill && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          Loading your profile details…
+        </div>
+      )}
+
       {/* Header */}
       {!isCompetencyMode && (
         <Card>

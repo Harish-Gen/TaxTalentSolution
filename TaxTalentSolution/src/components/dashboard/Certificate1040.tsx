@@ -1,27 +1,66 @@
-﻿import { useRef, useState } from "react";
+﻿import { useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Award, Download, Share2, ArrowLeft, CheckCircle } from "lucide-react";
 import { assetUrl } from "../../utils/appPaths";
+import { getProfileDisplayName } from "../../database/profileStore";
+
+export interface CertificateViewData {
+  title: string;
+  score: number;
+  issueDate: string;
+  validUntil: string;
+  credentialId: string;
+  level: string;
+  description?: string;
+}
 
 interface Certificate1040Props {
   onBack: () => void;
+  user?: {
+    id?: string;
+    email?: string;
+    user_metadata?: { name?: string };
+  } | null;
+  certificate?: CertificateViewData | null;
 }
 
-export function Certificate1040({ onBack }: Certificate1040Props) {
+export function Certificate1040({ onBack, user, certificate }: Certificate1040Props) {
   const certRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
-  const cert = {
-    recipientName: "John Doe",
-    title: "1040 Individual Tax Returns",
-    score: 94,
-    issueDate: "May 1, 2026",
-    validUntil: "May 1, 2028",
-    credentialId: "TT-1040-2026-001892",
-    level: "Expert",
-    description:
-      "In recognition of successfully completing the 1040 Individual Tax Returns assessment and demonstrating Expert-level expertise in U.S. tax preparation, deductions, credits, and complex scenarios.",
-    signature: "Tax Talent Solution",
-  };
+  const userId = user?.id ?? "guest";
+
+  const cert = useMemo(() => {
+    const title = certificate?.title ?? "1040 Individual Tax Returns";
+    const level = certificate?.level ?? "Expert";
+    const score = certificate?.score ?? 0;
+    return {
+      recipientName: getProfileDisplayName(userId, user),
+      title,
+      score,
+      issueDate:
+        certificate?.issueDate ||
+        new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+      validUntil:
+        certificate?.validUntil ||
+        new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+      credentialId:
+        certificate?.credentialId ||
+        `TT-1040-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
+      level,
+      description:
+        certificate?.description ||
+        `In recognition of successfully completing the ${title} assessment and demonstrating ${level}-level expertise in U.S. tax preparation, deductions, credits, and complex scenarios.`,
+      signature: "Tax Talent Solution",
+    };
+  }, [certificate, user, userId]);
 
   const handleDownload = async () => {
     const element = certRef.current;

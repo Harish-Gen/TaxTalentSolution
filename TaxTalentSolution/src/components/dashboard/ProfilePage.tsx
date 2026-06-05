@@ -6,6 +6,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
+import { Progress } from "../ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Checkbox } from "../ui/checkbox";
@@ -151,6 +152,9 @@ const US_TAX_SKILLS = [
 export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [showSkillDialog, setShowSkillDialog] = useState(false);
   const [customSkill, setCustomSkill] = useState("");
@@ -200,6 +204,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
   const accountEmail = user?.email ?? "";
   const resumeUploadRef = useRef<StorageFileUploadHandle>(null);
   const resumeSectionRef = useRef<HTMLDivElement>(null);
+  const skipAutoSaveRef = useRef(true);
   const [uploadedResume, setUploadedResume] = useState<UploadedStorageFile | null>(null);
 
   const months = [
@@ -212,28 +217,40 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file');
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB');
-        return;
-      }
+    if (!file) return;
 
-      try {
-        const stored = await uploadFileToStorage(file, `profiles/avatars/${userId}`);
-        const imageUrl = resolveStorageDownloadUrl(stored.name);
-        setProfileImage(imageUrl);
-        saveProfileImage(userId, imageUrl);
-        toast.success("Profile photo uploaded");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to upload image");
-      }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      if (profileImageInputRef.current) profileImageInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      if (profileImageInputRef.current) profileImageInputRef.current.value = "";
+      return;
+    }
+
+    setImageUploading(true);
+    setImageUploadProgress(0);
+
+    try {
+      const stored = await uploadFileToStorage(
+        file,
+        `profiles/avatars/${userId}`,
+        (percent) => setImageUploadProgress(percent)
+      );
+      setImageUploadProgress(100);
+      const imageUrl = resolveStorageDownloadUrl(stored.name);
+      setProfileImage(imageUrl);
+      saveProfileImage(userId, imageUrl);
+      toast.success("Profile photo uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload image");
+    } finally {
+      setImageUploading(false);
+      setImageUploadProgress(0);
+      if (profileImageInputRef.current) profileImageInputRef.current.value = "";
     }
   };
 
@@ -587,6 +604,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     }
     const savedImg = loadProfileImage(userId);
     setProfileImage(savedImg);
+    skipAutoSaveRef.current = true;
   }, [userId, user]);
 
   useEffect(() => {
@@ -623,15 +641,45 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     }
   };
 
-  // Save handler — persists everything to localStorage
-  const handleSaveProfile = useCallback(() => {
-    setSaveStatus('saving');
+  const persistProfile = useCallback(() => {
+    if (userId === "guest") return;
+    setSaveStatus("saving");
     const profileToSave = { ...profile, email: accountEmail || profile.email };
     saveProfile(userId, profileToSave);
     if (profileImage) saveProfileImage(userId, profileImage);
-    setTimeout(() => setSaveStatus('saved'), 400);
-    setTimeout(() => setSaveStatus('idle'), 2500);
+    window.setTimeout(() => setSaveStatus("saved"), 400);
+    window.setTimeout(() => setSaveStatus("idle"), 2500);
   }, [userId, profile, profileImage, accountEmail]);
+
+  const handleSaveProfile = useCallback(() => {
+    persistProfile();
+  }, [persistProfile]);
+
+  // Auto-save profile changes (skills, experience, availability, etc.)
+  useEffect(() => {
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
+    if (userId === "guest" || isEditing) return;
+
+    const timer = window.setTimeout(() => {
+      persistProfile();
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [profile, isEditing, userId, persistProfile]);
+
+  const reloadProfileFromStorage = useCallback(() => {
+    const base = createEmptyProfileFromUser(user);
+    const saved = loadProfile(userId);
+    if (saved) {
+      setProfile({ ...base, ...saved, email: accountEmail || saved.email });
+    } else {
+      setProfile(base);
+    }
+    skipAutoSaveRef.current = true;
+  }, [userId, user, accountEmail]);
 
   const handleConnectLinkedIn = () => {
     if (!linkedInInputUrl.trim()) {
@@ -655,8 +703,8 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
         <CardContent className="p-6">
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Profile Picture */}
-            <div className="flex-shrink-0">
-              <div className="relative">
+            <div className="flex-shrink-0 flex flex-col items-center gap-2 w-32">
+              <div className="relative w-32">
                 {profileImage ? (
                   <img 
                     src={profileImage} 
@@ -669,21 +717,37 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                   </div>
                 )}
                 <input
+                  ref={profileImageInputRef}
                   type="file"
                   id="profile-image-upload"
                   accept="image/*"
                   className="hidden"
+                  disabled={imageUploading}
                   onChange={handleImageUpload}
                 />
                 <Button
                   size="sm"
                   variant="outline"
                   className="absolute bottom-0 right-0 rounded-full w-8 h-8 p-0"
-                  onClick={() => document.getElementById('profile-image-upload')?.click()}
+                  disabled={imageUploading}
+                  onClick={() => profileImageInputRef.current?.click()}
                 >
-                  <Edit className="w-4 h-4" />
+                  {imageUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Edit className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
+              {imageUploading && (
+                <div className="w-full space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Uploading photo</span>
+                    <span>{imageUploadProgress > 0 ? `${imageUploadProgress}%` : "..."}</span>
+                  </div>
+                  <Progress value={imageUploadProgress} className="h-2 w-full" />
+                </div>
+              )}
             </div>
 
             {/* Availability + Preferred Location stacked */}
@@ -836,28 +900,50 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                     {profile.location}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => { setLinkedInInputUrl(""); setLinkedInStatus('idle'); setLinkedInMessage(""); setShowLinkedInDialog(true); }}>
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Connect LinkedIn
-                </Button>
-                <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </Button>
-                <Button
-                  onClick={handleSaveProfile}
-                  disabled={saveStatus === 'saving'}
-                  variant={saveStatus === 'saved' ? 'secondary' : 'default'}
-                >
-                  {saveStatus === 'saving' ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>
-                  ) : saveStatus === 'saved' ? (
-                    <><CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />Saved!</>
-                  ) : (
-                    <><Save className="w-4 h-4 mr-2" />Save Profile</>
-                  )}
-                </Button>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setLinkedInInputUrl("");
+                        setLinkedInStatus("idle");
+                        setLinkedInMessage("");
+                        setShowLinkedInDialog(true);
+                      }}
+                    >
+                      <Link2 className="w-4 h-4 mr-2" />
+                      Connect LinkedIn
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Profile
+                    </Button>
+                    <Button
+                      onClick={handleSaveProfile}
+                      disabled={saveStatus === "saving"}
+                      variant={saveStatus === "saved" ? "secondary" : "outline"}
+                    >
+                      {saveStatus === "saving" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Saving…
+                        </>
+                      ) : saveStatus === "saved" ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                          Saved
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save now
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Changes save automatically
+                  </span>
                 </div>
               </div>
 
@@ -930,10 +1016,16 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <Button onClick={() => { setIsEditing(false); handleSaveProfile(); }}>
-                      Save Changes
+                    <Button onClick={() => { handleSaveProfile(); setIsEditing(false); }}>
+                      Done
                     </Button>
-                    <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        reloadProfileFromStorage();
+                        setIsEditing(false);
+                      }}
+                    >
                       Cancel
                     </Button>
                   </div>
@@ -963,36 +1055,6 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Resume */}
-      <Card id="profile-resume-section" ref={resumeSectionRef}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Resume
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Upload your latest resume for job applications and employer review.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <StorageFileUpload
-            ref={resumeUploadRef}
-            folder={`profiles/resumes/${userId}`}
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            maxSizeMb={5}
-            hint="PDF, DOC, or DOCX up to 5MB"
-            value={uploadedResume}
-            onChange={handleResumeChange}
-            disabled={userId === "guest"}
-          />
-          {uploadedResume && (
-            <Button type="button" variant="outline" size="sm" onClick={handleDownloadResume}>
-              Download resume
-            </Button>
-          )}
         </CardContent>
       </Card>
 
@@ -1148,6 +1210,78 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                 </div>
               </div>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Resume — bottom of profile */}
+      <Card id="profile-resume-section" ref={resumeSectionRef}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Resume
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Upload your latest resume for job applications and employer review.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {uploadedResume ? (
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+                    <FileText className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{uploadedResume.displayName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {uploadedResume.size < 1024 * 1024
+                        ? `${(uploadedResume.size / 1024).toFixed(1)} KB`
+                        : `${(uploadedResume.size / (1024 * 1024)).toFixed(1)} MB`}
+                      {" · "}
+                      Saved to your profile
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Button type="button" variant="outline" size="sm" onClick={handleDownloadResume}>
+                    Download
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => resumeUploadRef.current?.openFilePicker()}
+                    disabled={userId === "guest"}
+                  >
+                    Replace
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => handleResumeChange(null)}
+                    disabled={userId === "guest"}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className={uploadedResume ? "hidden" : undefined}>
+            <StorageFileUpload
+              ref={resumeUploadRef}
+              folder={`profiles/resumes/${userId}`}
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              maxSizeMb={5}
+              hint="PDF, DOC, or DOCX up to 5MB"
+              value={uploadedResume}
+              onChange={handleResumeChange}
+              disabled={userId === "guest"}
+            />
           </div>
         </CardContent>
       </Card>

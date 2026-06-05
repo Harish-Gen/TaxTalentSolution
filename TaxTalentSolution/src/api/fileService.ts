@@ -31,15 +31,26 @@ export function resolveStorageDownloadUrl(ref: string): string {
   return getStorageFileDownloadUrl(ref);
 }
 
-async function parseError(response: Response): Promise<string> {
-  const data = await response.json().catch(() => ({}));
-  const detail = (data as { detail?: string }).detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) {
-    return detail.map((item) => item.msg ?? String(item)).join(", ");
+function parseErrorBody(status: number, body: string): string {
+  try {
+    const data = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+    const detail = data.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((item) => item.msg ?? String(item)).join(", ");
+    }
+  } catch {
+    // ignore invalid JSON
   }
-  return `Request failed (${response.status})`;
+  return `Request failed (${status})`;
 }
+
+async function parseError(response: Response): Promise<string> {
+  const body = await response.text().catch(() => "");
+  return parseErrorBody(response.status, body);
+}
+
+export type UploadProgressCallback = (percent: number) => void;
 
 export async function listStorageFiles(): Promise<StorageFile[]> {
   const response = await fetch(`${API_BASE_URL}/api/files/`);
@@ -47,25 +58,50 @@ export async function listStorageFiles(): Promise<StorageFile[]> {
   return response.json();
 }
 
-export async function uploadStorageFile(file: File): Promise<StorageFile> {
+export async function uploadStorageFile(
+  file: File,
+  onProgress?: UploadProgressCallback
+): Promise<StorageFile> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/files/upload`, {
-    method: "POST",
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}/api/files/upload`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as StorageFile);
+        } catch {
+          reject(new Error("Invalid response from server"));
+        }
+        return;
+      }
+      reject(new Error(parseErrorBody(xhr.status, xhr.responseText)));
+    };
+
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.onabort = () => reject(new Error("Upload cancelled"));
+
+    xhr.send(formData);
   });
-  if (!response.ok) throw new Error(await parseError(response));
-  return response.json();
 }
 
 /** Upload with an optional folder prefix (e.g. resumes, profiles). */
 export async function uploadFileToStorage(
   file: File,
-  folder?: string
+  folder?: string,
+  onProgress?: UploadProgressCallback
 ): Promise<StorageFile> {
   const blobPath = storageBlobPath(folder ?? "", file.name);
-  return uploadStorageFile(fileWithBlobPath(file, blobPath));
+  return uploadStorageFile(fileWithBlobPath(file, blobPath), onProgress);
 }
 
 export async function downloadStorageFile(

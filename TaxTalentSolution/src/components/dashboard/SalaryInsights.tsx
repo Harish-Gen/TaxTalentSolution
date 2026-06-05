@@ -5,37 +5,75 @@ import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { 
-  DollarSign, 
   TrendingUp, 
   MapPin, 
   Users, 
   Building,
   Star,
   ArrowUp,
-  ArrowDown,
   BarChart3,
   Target,
   Award,
-  Calendar
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
-export function SalaryInsights() {
-  const [selectedRole, setSelectedRole] = useState("senior-tax-associate");
-  const [selectedLocation, setSelectedLocation] = useState("mumbai");
-  const [selectedExperience, setSelectedExperience] = useState("3-5");
+const SAMPLE_SALARY_BY_ROLE = [
+  { role: "Associate", min: 6, median: 8, max: 10, experience: "1-3 yrs" },
+  { role: "Sr Associate", min: 9, median: 11.5, max: 14, experience: "3-5 yrs" },
+  { role: "Manager", min: 14, median: 17, max: 22, experience: "5-8 yrs" },
+  { role: "Sr Manager", min: 20, median: 24, max: 30, experience: "8+ yrs" },
+];
 
-  const salaryData: Array<{ role: string; min: number; max: number; median: number; experience: string }> = [];
-  const locationData: Array<{ city: string; avgSalary: number; growth: number; jobs: number }> = [];
-  const trendData: Array<{ month: string; salary: number }> = [];
-  const skillPremiumData: Array<{ skill: string; premium: number; demand: string }> = [];
-  const companyData: Array<{ name: string; range: string; avg: number; color: string }> = [];
-  const hasData =
-    salaryData.length > 0 ||
-    locationData.length > 0 ||
-    trendData.length > 0 ||
-    skillPremiumData.length > 0 ||
-    companyData.length > 0;
+const SAMPLE_LOCATIONS = [
+  { city: "Mumbai", avgSalary: 12.5, growth: 8.2, jobs: 145 },
+  { city: "Bangalore", avgSalary: 11.8, growth: 9.1, jobs: 112 },
+  { city: "Pune", avgSalary: 10.2, growth: 7.5, jobs: 86 },
+  { city: "Hyderabad", avgSalary: 10.5, growth: 8.8, jobs: 74 },
+  { city: "Delhi NCR", avgSalary: 11.2, growth: 6.9, jobs: 98 },
+];
+
+const SAMPLE_TRENDS = [
+  { month: "Jan", salary: 9.8 },
+  { month: "Feb", salary: 10.0 },
+  { month: "Mar", salary: 10.1 },
+  { month: "Apr", salary: 10.3 },
+  { month: "May", salary: 10.4 },
+  { month: "Jun", salary: 10.6 },
+  { month: "Jul", salary: 10.8 },
+  { month: "Aug", salary: 11.0 },
+  { month: "Sep", salary: 11.1 },
+  { month: "Oct", salary: 11.3 },
+  { month: "Nov", salary: 11.4 },
+  { month: "Dec", salary: 11.5 },
+];
+
+const SAMPLE_SKILL_PREMIUM = [
+  { skill: "1120 Corporate Returns", premium: 18, demand: "Very High" },
+  { skill: "1065 Partnership Returns", premium: 15, demand: "High" },
+  { skill: "International Tax", premium: 22, demand: "Very High" },
+  { skill: "Transfer Pricing", premium: 20, demand: "High" },
+  { skill: "1040 HNI Clients", premium: 12, demand: "Medium" },
+  { skill: "State & Local Tax", premium: 10, demand: "Medium" },
+];
+
+const SAMPLE_COMPANIES = [
+  { name: "Big 4 Firm", range: "₹14L – ₹28L", avg: 19, color: "#8884d8" },
+  { name: "Mid-tier CPA", range: "₹10L – ₹18L", avg: 13, color: "#82ca9d" },
+  { name: "Outsourcing KPO", range: "₹8L – ₹14L", avg: 11, color: "#ffc658" },
+  { name: "In-house Corp", range: "₹12L – ₹22L", avg: 16, color: "#ff7c7c" },
+  { name: "Boutique Advisory", range: "₹11L – ₹20L", avg: 15, color: "#8dd1e1" },
+];
+
+export function SalaryInsights() {
+  const [selectedRole, setSelectedRole] = useState("tax-associate");
+  const [selectedLocation, setSelectedLocation] = useState("mumbai");
+  const [selectedExperience, setSelectedExperience] = useState("5-8");
+
+  const salaryData = SAMPLE_SALARY_BY_ROLE;
+  const locationData = SAMPLE_LOCATIONS;
+  const trendData = SAMPLE_TRENDS;
+  const skillPremiumData = SAMPLE_SKILL_PREMIUM;
+  const companyData = SAMPLE_COMPANIES;
 
   const getDemandColor = (demand: string) => {
     switch (demand) {
@@ -47,43 +85,14 @@ export function SalaryInsights() {
     }
   };
 
-  if (!hasData) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center text-xl">
-              <DollarSign className="w-6 h-6 mr-2" />
-              Salary Insights
-            </CardTitle>
-            <p className="text-muted-foreground">
-              Market salary data is not available yet. Check back after more jobs and applications are on the platform.
-            </p>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-xl">
-            <DollarSign className="w-6 h-6 mr-2" />
-            Salary Insights & Market Analysis
-          </CardTitle>
-          <p className="text-muted-foreground">
-            Comprehensive salary data and market trends for US Tax professionals in India
-          </p>
-        </CardHeader>
-      </Card>
-
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Job Title</p>
             <Select value={selectedRole} onValueChange={setSelectedRole}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Role" />
@@ -95,6 +104,9 @@ export function SalaryInsights() {
                 <SelectItem value="senior-tax-manager">Senior Tax Manager</SelectItem>
               </SelectContent>
             </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Location</p>
             <Select value={selectedLocation} onValueChange={setSelectedLocation}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Location" />
@@ -108,6 +120,9 @@ export function SalaryInsights() {
                 <SelectItem value="delhi">Delhi NCR</SelectItem>
               </SelectContent>
             </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Experience</p>
             <Select value={selectedExperience} onValueChange={setSelectedExperience}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Experience" />
@@ -119,6 +134,7 @@ export function SalaryInsights() {
                 <SelectItem value="8+">8+ years</SelectItem>
               </SelectContent>
             </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -143,7 +159,7 @@ export function SalaryInsights() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">85th</div>
-              <div className="text-sm text-muted-foreground">Percentile</div>
+              <div className="text-sm text-muted-foreground">Percentile Rank</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center text-green-600">

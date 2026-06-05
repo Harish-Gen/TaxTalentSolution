@@ -5,7 +5,7 @@ import { Badge } from "../ui/badge";
 import { Progress } from "../ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Assessment1040 } from "./Assessment1040";
-import { Certificate1040 } from "./Certificate1040";
+import { Certificate1040, type CertificateViewData } from "./Certificate1040";
 import { 
   Award, 
   Play, 
@@ -45,6 +45,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   const [activeTab, setActiveTab] = useState("available");
   const [currentAssessmentId, setCurrentAssessmentId] = useState<string | null>(null);
   const [showCertificate, setShowCertificate] = useState<string | null>(null);
+  const [selectedCertificate, setSelectedCertificate] = useState<CertificateViewData | null>(null);
   const [plan, setPlan] = useState<CandidatePlan>("free");
   const [activityRefresh, setActivityRefresh] = useState(0);
   const [examQuestions, setExamQuestions] = useState<ExamQuestion[] | null>(null);
@@ -401,12 +402,32 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     setActivityRefresh((n) => n + 1);
   };
 
-  const handleShowCertificate = (certificateId: string) => {
-    setShowCertificate(certificateId);
+  const handleShowCertificate = (cert: {
+    id: string;
+    title: string;
+    score: number;
+    issueDate: string;
+    validUntil: string;
+    credentialId: string;
+    level: string;
+    description?: string;
+  }) => {
+    if (!is1040Certificate(cert)) return;
+    setSelectedCertificate({
+      title: cert.title,
+      score: cert.score,
+      issueDate: cert.issueDate,
+      validUntil: cert.validUntil,
+      credentialId: cert.credentialId,
+      level: cert.level,
+      description: cert.description,
+    });
+    setShowCertificate("1040");
   };
 
   const handleBackToCertificates = () => {
     setShowCertificate(null);
+    setSelectedCertificate(null);
   };
 
   if (loading) {
@@ -437,12 +458,19 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
         assessmentTitle={active?.title}
         examQuestions={examQuestions ?? undefined}
         durationMinutes={durationMinutes || undefined}
+        user={user}
       />
     );
   }
 
   if (showCertificate === "1040") {
-    return <Certificate1040 onBack={handleBackToCertificates} />;
+    return (
+      <Certificate1040
+        onBack={handleBackToCertificates}
+        user={user}
+        certificate={selectedCertificate}
+      />
+    );
   }
 
   return (
@@ -657,7 +685,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                             variant="outline" 
                             size="sm" 
                             className="bg-white"
-                            onClick={() => handleShowCertificate("1040")}
+                            onClick={() => handleShowCertificate(cert)}
                           >
                             <Eye className="w-4 h-4 mr-2" />
                             View Certificate

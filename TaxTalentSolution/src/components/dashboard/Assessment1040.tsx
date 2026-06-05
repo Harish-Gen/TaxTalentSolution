@@ -18,6 +18,7 @@ import {
   Star
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { getProfileDisplayName } from "../../database/profileStore";
 
 interface Question {
   id: number;
@@ -498,12 +499,18 @@ export function Assessment1040({
   assessmentTitle,
   examQuestions,
   durationMinutes,
+  user,
 }: {
   onBack: () => void;
   onComplete?: (score: number) => void;
   assessmentTitle?: string;
   examQuestions?: Question[];
   durationMinutes?: number;
+  user?: {
+    id?: string;
+    email?: string;
+    user_metadata?: { name?: string };
+  } | null;
 }) {
   const questionBank = examQuestions?.length ? examQuestions : DEMO_1040_QUESTIONS;
   const durationSeconds = (durationMinutes ?? 45) * 60;
@@ -606,6 +613,9 @@ export function Assessment1040({
   const currentQuestion = questionBank[assessment.currentQuestion];
   const progress = ((assessment.currentQuestion + 1) / questionBank.length) * 100;
   const answeredQuestions = Object.keys(assessment.answers).length;
+  const recipientName = getProfileDisplayName(user?.id ?? "guest", user);
+  const certificationLevel =
+    assessment.score >= 90 ? "Expert" : assessment.score >= 75 ? "Specialist" : "Professional";
 
   if (assessment.showCertificate) {
     return (
@@ -622,7 +632,7 @@ export function Assessment1040({
               
               <div className="mb-8">
                 <p className="text-lg text-gray-600 mb-4">This is to certify that</p>
-                <p className="text-4xl font-bold text-blue-700 mb-4">John Doe</p>
+                <p className="text-4xl font-bold text-blue-700 mb-4">{recipientName}</p>
                 <p className="text-lg text-gray-600 mb-2">has successfully completed the</p>
                 <p className="text-2xl font-semibold text-gray-800 mb-6">{displayTitle}</p>
               </div>
@@ -637,7 +647,7 @@ export function Assessment1040({
                   <div className="text-sm text-gray-600">Questions Completed</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">Expert</div>
+                  <div className="text-2xl font-bold text-purple-600">{certificationLevel}</div>
                   <div className="text-sm text-gray-600">Certification Level</div>
                 </div>
               </div>

@@ -99,7 +99,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     { id: "profile", label: "Profile", icon: User },
     { id: "competencies", label: "Competencies", icon: Award },
     { id: "assessments", label: "Assessments", icon: Award },
-    // { id: "salary", label: "Salary Insights", icon: DollarSign },
+    { id: "salary", label: "Salary Insights", icon: DollarSign },
     { id: "matches", label: "Best Matches", icon: Target },
     { id: "jobs", label: "Jobs", icon: Briefcase },
     { id: "status", label: "Status", icon: Activity },

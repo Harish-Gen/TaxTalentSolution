@@ -82,6 +82,35 @@ export function createEmptyProfileFromUser(user: {
   };
 }
 
+/** Display name for certificates and similar UI (profile first, then auth metadata). */
+export function getProfileDisplayName(
+  userId: string,
+  user?: {
+    email?: string;
+    user_metadata?: { name?: string };
+  } | null
+): string {
+  const saved = loadProfile(userId);
+  if (saved?.name?.trim()) return saved.name.trim();
+
+  const metaName = user?.user_metadata?.name;
+  if (typeof metaName === "string" && metaName.trim()) return metaName.trim();
+
+  try {
+    const sessionName = sessionStorage.getItem("userName");
+    if (sessionName?.trim()) return sessionName.trim();
+  } catch {
+    // sessionStorage unavailable
+  }
+
+  if (user?.email) {
+    const localPart = user.email.split("@")[0]?.trim();
+    if (localPart) return localPart;
+  }
+
+  return "Certificate Recipient";
+}
+
 /** Load a saved profile for a user. Returns null if none saved yet. */
 export function loadProfile(userId: string): StoredProfile | null {
   try {
