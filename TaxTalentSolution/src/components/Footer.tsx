@@ -146,8 +146,6 @@ export function Footer({ onPrivacyPolicyClick, onTermsClick, onCookiePolicyClick
           <div className="flex flex-wrap items-center gap-6 text-sm text-primary-foreground/80">
             <span>🇮🇳 Made in India for Global Tax Professionals</span>
             <span>•</span>
-            <span>ISO 27001 Certified</span>
-            <span>•</span>
             <span>GDPR Compliant</span>
           </div>
         </div>

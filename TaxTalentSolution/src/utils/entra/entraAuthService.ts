@@ -3,20 +3,46 @@ import {
   fetchEntraLoginUrl,
   isEntraEnabled,
 } from "../../api/entraConfigService";
-import { appRootUrl } from "../appPaths";
+import { appRootPath, appRootUrl } from "../appPaths";
 import { getEntraRedirectUri } from "./config";
 import {
   clearSignupIntent,
   setSignupIntent,
   type SignupIntentRole,
 } from "./signupIntent";
+import { clearAuthSession } from "./tokenUtils";
 
-export async function redirectToEntraSignIn(
-  signupRole?: SignupIntentRole
-): Promise<void> {
-  if (signupRole) {
-    setSignupIntent(signupRole);
-  } else {
+export type EntraAuthMode = "login" | "signup";
+
+export function isAuthBridgeReturnUrl(): boolean {
+  const auth = new URLSearchParams(window.location.search).get("auth");
+  return auth === "login" || auth === "signup";
+}
+
+export function clearAuthBridgeQueryFromUrl(): void {
+  if (window.location.search.includes("auth=")) {
+    window.history.replaceState({}, "", appRootPath());
+  }
+}
+
+export function pushAuthBridgeHistory(mode: EntraAuthMode): void {
+  const query = mode === "signup" ? "auth=signup" : "auth=login";
+  window.history.pushState({ ttsAuthBridge: mode }, "", appRootUrl(query));
+}
+
+export async function redirectToEntraSignIn(options?: {
+  signupRole?: SignupIntentRole;
+  forSignup?: boolean;
+}): Promise<void> {
+  const forSignup = options?.forSignup === true;
+
+  if (forSignup) {
+    clearAuthSession();
+  }
+
+  if (options?.signupRole) {
+    setSignupIntent(options.signupRole);
+  } else if (!forSignup) {
     clearSignupIntent();
   }
 
@@ -26,19 +52,23 @@ export async function redirectToEntraSignIn(
       "Entra sign-in is not enabled. Set Entra:Enabled in API appsettings.Development.json."
     );
   }
-  const { AuthorizeUrl } = await fetchEntraLoginUrl(getEntraRedirectUri());
-  window.location.href = AuthorizeUrl;
+
+  const { AuthorizeUrl } = await fetchEntraLoginUrl(
+    getEntraRedirectUri(),
+    forSignup
+  );
+  window.location.assign(AuthorizeUrl);
 }
 
-/** Header / Get Started / Login — Entra when enabled, otherwise caller shows login page. */
 export async function startSignInFlow(options?: {
   signupRole?: SignupIntentRole;
+  forSignup?: boolean;
 }): Promise<"entra" | "local"> {
   try {
     if (!(await isEntraEnabled())) {
       return "local";
     }
-    await redirectToEntraSignIn(options?.signupRole);
+    await redirectToEntraSignIn(options);
     return "entra";
   } catch {
     return "local";

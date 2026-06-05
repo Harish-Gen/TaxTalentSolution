@@ -32,7 +32,7 @@ const plans: Plan[] = [
       "Basic support"
     ],
     assessments: [
-      "Assessment fees: ₹500 per test",
+      "Assessment Fee",
       "1040 Individual Tax Returns",
       "1065 Partnership Returns", 
       "1120 Corporate Returns",
@@ -57,7 +57,7 @@ const plans: Plan[] = [
       "Mock Interview"
     ],
     assessments: [
-      "Assessment fees: ₹300 per test",
+      "50% off",
       "All available assessments",
       "Detailed performance reports",
       "Skill gap analysis"
@@ -92,16 +92,16 @@ const plans: Plan[] = [
 import { PendingPlan } from "./PaymentModal";
 
 export function Pricing({ onGetStarted }: { onGetStarted?: (plan: PendingPlan) => void }) {
-  const [proBilling, setProBilling] = useState<"monthly" | "annual">("annual");
+  const [proBilling, setProBilling] = useState<"monthly" | "sixMonth">("sixMonth");
 
   const handleGetStarted = (plan: Plan) => {
     if (!onGetStarted) return;
     if (plan.name === "Professional Pro") {
       onGetStarted({
         name: plan.name,
-        price: proBilling === "monthly" ? "₹1,000" : "₹6,000",
-        period: proBilling === "monthly" ? "per month" : "per year",
-        billing: proBilling,
+        price: proBilling === "monthly" ? "₹2,000" : "₹6,000",
+        period: proBilling === "monthly" ? "per month" : "for 6 months",
+        billing: proBilling === "monthly" ? "monthly" : "annual",
       });
     } else {
       onGetStarted({
@@ -164,21 +164,21 @@ export function Pricing({ onGetStarted }: { onGetStarted?: (plan: PendingPlan) =
                         <input
                           type="radio"
                           name="pro-billing"
-                          value="annual"
-                          checked={proBilling === "annual"}
-                          onChange={() => setProBilling("annual")}
+                          value="sixMonth"
+                          checked={proBilling === "sixMonth"}
+                          onChange={() => setProBilling("sixMonth")}
                           className="accent-primary w-4 h-4"
                         />
-                        <span className="text-sm text-muted-foreground">Annual</span>
+                        <span className="text-sm text-muted-foreground">6 Months</span>
                       </label>
                     </div>
                     <span className="text-4xl text-foreground">
-                      {proBilling === "monthly" ? "₹1,000" : "₹6,000"}
+                      {proBilling === "monthly" ? "₹2,000" : "₹6,000"}
                     </span>
                     <span className="text-muted-foreground ml-2">
-                      {proBilling === "monthly" ? "per month" : "per year"}
+                      {proBilling === "monthly" ? "per month" : "for 6 months"}
                     </span>
-                    {proBilling === "annual" && (
+                    {proBilling === "sixMonth" && (
                       <p className="text-xs text-emerald-600 mt-1 font-medium">Save ₹6,000 vs monthly</p>
                     )}
                   </div>

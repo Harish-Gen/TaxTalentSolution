@@ -47,11 +47,13 @@ export async function isEntraEnabled(): Promise<boolean> {
 }
 
 export async function fetchEntraLoginUrl(
-  redirectUri?: string
+  redirectUri?: string,
+  forSignup = false
 ): Promise<EntraLoginUrlResponse> {
   const resolvedRedirect = redirectUri ?? getEntraRedirectUri();
   const params = new URLSearchParams({
     redirect_uri: resolvedRedirect,
+    for_signup: String(forSignup),
   });
   const response = await fetch(
     `${API_BASE_URL}/api/account/entra-login-url?${params.toString()}`

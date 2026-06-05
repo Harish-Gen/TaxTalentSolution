@@ -20,6 +20,7 @@ import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { CookieConsent } from "./components/CookieConsent";
 import { TermsOfService } from "./components/TermsOfService";
 import { About } from "./components/About";
+import { EntraAuthRedirect } from "./components/EntraAuthRedirect";
 import { initializeFromStorage, activateSubscription } from "./database/userStore";
 import type { CandidatePlan, BillingCycle } from "./database/types";
 import {
@@ -29,11 +30,26 @@ import {
   hasActiveEntraSession,
   isTokenExpired,
 } from "./utils/entra/tokenUtils";
-import { startSignInFlow } from "./utils/entra/entraAuthService";
+import {
+  clearAuthBridgeQueryFromUrl,
+  isAuthBridgeReturnUrl,
+  pushAuthBridgeHistory,
+  type EntraAuthMode,
+} from "./utils/entra/entraAuthService";
 import { setLoginSessionRole } from "./utils/sessionRole";
-import { setSignupIntent } from "./utils/entra/signupIntent";
+import { clearSignupIntent, setSignupIntent } from "./utils/entra/signupIntent";
 
-type View = "landing" | "login" | "dashboard" | "employer-portal" | "admin-portal" | "employer-info" | "privacy-policy" | "terms-of-service" | "about";
+type View =
+  | "landing"
+  | "login"
+  | "entra-auth"
+  | "dashboard"
+  | "employer-portal"
+  | "admin-portal"
+  | "employer-info"
+  | "privacy-policy"
+  | "terms-of-service"
+  | "about";
 
 type LoginPageConfig = {
   mode: "login" | "signup";
@@ -67,6 +83,10 @@ function initialViewFromUrl(): View | null {
 }
 
 function readInitialAuthState(): { user: any | null; view: View } {
+  if (isAuthBridgeReturnUrl()) {
+    return { user: null, view: "landing" };
+  }
+
   const entraToken = getAuthToken();
   const entraUser = getStoredEntraUser();
   if (entraToken && entraUser && !isTokenExpired(entraToken)) {
@@ -90,6 +110,10 @@ export default function App() {
   const [privacyScrollTarget, setPrivacyScrollTarget] = useState<string | undefined>(undefined);
   const [showLinkedInLoading, setShowLinkedInLoading] = useState(false);
   const [loginPageConfig, setLoginPageConfig] = useState<LoginPageConfig>(DEFAULT_LOGIN_CONFIG);
+  const [entraAuthBridge, setEntraAuthBridge] = useState<{
+    mode: EntraAuthMode;
+    signupRole: SignupRole;
+  }>({ mode: "signup", signupRole: "candidate" });
 
   useEffect(() => {
     // Re-hydrate localStorage-registered accounts into in-memory DB
@@ -99,6 +123,14 @@ export default function App() {
   useEffect(() => {
     // Check for existing session (Entra or Supabase)
     const checkSession = async () => {
+      if (isAuthBridgeReturnUrl()) {
+        clearAuthBridgeQueryFromUrl();
+        setUser(null);
+        setCurrentView("landing");
+        setLoading(false);
+        return;
+      }
+
       const entraToken = getAuthToken();
       const entraUser = getStoredEntraUser();
       if (entraToken && entraUser && !isTokenExpired(entraToken)) {
@@ -176,40 +208,30 @@ export default function App() {
     setCurrentView("login");
   };
 
-  const handleCandidateLogin = async () => {
-    setLoginSessionRole("candidate");
-    setSignupIntent("candidate");
-    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
-    openAuthPage("login", "candidate", false);
+  const beginEntraAuth = (mode: EntraAuthMode, signupRole: SignupRole = "candidate") => {
+    setUser(null);
+    setEntraAuthBridge({ mode, signupRole });
+    setLoginSessionRole(signupRole === "employer_user" ? "employer" : "candidate");
+    if (mode === "signup") {
+      setSignupIntent(signupRole);
+    } else {
+      clearSignupIntent();
+    }
+    pushAuthBridgeHistory(mode);
+    setCurrentView("entra-auth");
   };
 
-  const handleEmployerLogin = async () => {
-    setLoginSessionRole("employer");
-    setSignupIntent("employer_user");
-    if ((await startSignInFlow({ signupRole: "employer_user" })) === "entra") return;
-    openAuthPage("login", "employer_user", false);
-  };
+  const handleCandidateLogin = () => beginEntraAuth("login", "candidate");
 
-  const handleCandidateSignUp = async () => {
-    setLoginSessionRole("candidate");
-    setSignupIntent("candidate");
-    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
-    openAuthPage("signup", "candidate", true);
-  };
+  const handleEmployerLogin = () => beginEntraAuth("login", "employer_user");
 
-  const handleEmployerSignUp = async () => {
-    setLoginSessionRole("employer");
-    setSignupIntent("employer_user");
-    if ((await startSignInFlow({ signupRole: "employer_user" })) === "entra") return;
-    openAuthPage("signup", "employer_user", true);
-  };
+  const handleCandidateSignUp = () => beginEntraAuth("signup", "candidate");
 
-  const handlePricingGetStarted = async (plan: PendingPlan) => {
+  const handleEmployerSignUp = () => beginEntraAuth("signup", "employer_user");
+
+  const handlePricingGetStarted = (plan: PendingPlan) => {
     setPendingPlan(plan);
-    setLoginSessionRole("candidate");
-    setSignupIntent("candidate");
-    if ((await startSignInFlow({ signupRole: "candidate" })) === "entra") return;
-    openAuthPage("signup", "candidate", true);
+    beginEntraAuth("signup", "candidate");
   };
 
   const handleShowEmployerInfo = () => {
@@ -217,6 +239,7 @@ export default function App() {
   };
 
   const handleBackToLanding = () => {
+    clearAuthBridgeQueryFromUrl();
     setCurrentView("landing");
   };
 
@@ -264,6 +287,23 @@ export default function App() {
       </div>
     </div>
   ) : null;
+
+  if (currentView === "entra-auth") {
+    const { mode, signupRole } = entraAuthBridge;
+    return (
+      <>
+        <EntraAuthRedirect
+          mode={mode}
+          signupRole={signupRole}
+          onBack={handleBackToLanding}
+          onFallback={() =>
+            openAuthPage(mode === "signup" ? "signup" : "login", signupRole, mode === "signup")
+          }
+        />
+        <Toaster />
+      </>
+    );
+  }
 
   if (currentView === "login") {
     return (

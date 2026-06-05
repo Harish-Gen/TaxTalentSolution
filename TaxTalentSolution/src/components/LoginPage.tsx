@@ -119,7 +119,10 @@ export function LoginPage({
         setLoading(false);
         return;
       }
-      await redirectToEntraSignIn(signupRole);
+      await redirectToEntraSignIn({
+        signupRole,
+        forSignup: !isLogin,
+      });
     } catch {
       showMessage("Microsoft sign-in failed. Please try again.", "error");
       setLoading(false);
