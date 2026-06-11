@@ -24,6 +24,7 @@ from controllers.notification_controller import router as notification_router
 from controllers.savedcandidate_controller import router as savedcandidate_router
 from controllers.profileview_controller import router as profileview_router
 from controllers.adminuser_controller import router as adminuser_router
+from controllers.payment_controller import router as payment_router
 
 app = FastAPI(title="TTS API Endpoints", description="A structured FastAPI application with Repository Pattern")
 
@@ -52,6 +53,7 @@ app.include_router(notification_router)
 app.include_router(savedcandidate_router)
 app.include_router(profileview_router)
 app.include_router(adminuser_router)
+app.include_router(payment_router)
 
 
 def _ui_static_directory() -> Path:

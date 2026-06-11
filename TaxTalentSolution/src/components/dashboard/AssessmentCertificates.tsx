@@ -20,10 +20,15 @@ import {
   Eye,
   Loader2,
   Link,
-  Linkedin
+  Linkedin,
+  X,
+  Lock,
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 import { useAssessments, useCertificates, useUserAssessmentActivity } from "../../database";
 import { getSubscription } from "../../database/userStore";
+import { loadProfile } from "../../database/profileStore";
 import {
   markAssessmentInProgress,
   markAssessmentCompleted,
@@ -38,6 +43,32 @@ import { certificateService } from "../../api/certificateService";
 import { candidateService } from "../../api/candidateService";
 import type { CandidatePlan } from "../../database/types";
 import { toast } from "sonner";
+import { paymentService } from "../../api/paymentService";
+
+// Razorpay checkout.js injects a global constructor
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window.Razorpay !== "undefined") { resolve(); return; }
+    const existing = document.getElementById("razorpay-checkout-js");
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "razorpay-checkout-js";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
+    document.body.appendChild(script);
+  });
+}
 
 interface AssessmentCertificatesProps {
   user?: any;
@@ -52,6 +83,10 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   const [activityRefresh, setActivityRefresh] = useState(0);
   const [examQuestions, setExamQuestions] = useState<ExamQuestion[] | null>(null);
   const [startingAssessment, setStartingAssessment] = useState(false);
+  const [pendingPaymentAssessment, setPendingPaymentAssessment] = useState<any>(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paidAssessments, setPaidAssessments] = useState<string[]>([]);
 
   const userId = user?.id as string | undefined;
   const {
@@ -74,6 +109,29 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
       setPlan(sub.plan);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (userId) {
+      paymentService.getUserPayments(userId)
+        .then((payments) => {
+          const paidIds = payments
+            .filter((p) => p.status === "success" && p.assessmentid)
+            .map((p) => p.assessmentid as string);
+          setPaidAssessments(paidIds);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch payments:", err);
+          const stored = localStorage.getItem(`tts_paid_assessments_${userId}`);
+          if (stored) {
+            try {
+              setPaidAssessments(JSON.parse(stored));
+            } catch (e) {
+              console.error("Failed to parse paid assessments:", e);
+            }
+          }
+        });
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (activeTab === "available") {
@@ -346,6 +404,103 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     setCurrentAssessmentId(assessment.id);
   };
 
+  const getAssessmentPrice = (originalPrice: number) => {
+    if (plan === 'premium') return 0;
+    if (plan === 'professional') return Math.round(originalPrice * 0.5);
+    return originalPrice;
+  };
+
+  const onStartAssessmentClick = (assessment: (typeof availableAssessments)[0]) => {
+    const finalPrice = getAssessmentPrice(assessment.priceNum);
+    const isAlreadyPaid = paidAssessments.includes(assessment.id);
+
+    if (finalPrice === 0 || isAlreadyPaid) {
+      void handleStartAssessment(assessment);
+    } else {
+      setPendingPaymentAssessment(assessment);
+    }
+  };
+
+  const handlePaymentSuccess = (assessment: (typeof availableAssessments)[0]) => {
+    if (userId) {
+      const newPaid = [...paidAssessments, assessment.id];
+      setPaidAssessments(newPaid);
+      localStorage.setItem(`tts_paid_assessments_${userId}`, JSON.stringify(newPaid));
+    }
+    setPendingPaymentAssessment(null);
+    toast.success("Payment successful! Unlocking assessment...");
+    void handleStartAssessment(assessment);
+  };
+
+  const handleTriggerRazorpay = async (assessment: (typeof availableAssessments)[0]) => {
+    setPaymentError(null);
+    setPaymentProcessing(true);
+    try {
+      await loadRazorpayScript();
+      const finalPrice = getAssessmentPrice(assessment.priceNum);
+
+      // 1. Create order on FastAPI backend
+      const orderResponse = await paymentService.createOrder(
+        finalPrice,
+        `rcpt_${assessment.id.slice(0, 8)}`,
+        assessment.id
+      );
+
+      const options = {
+        key: orderResponse.key_id,
+        amount: orderResponse.amount, // from backend
+        currency: orderResponse.currency, // from backend
+        name: "Tax Talent Solution",
+        description: `Unlock Assessment: ${assessment.title}`,
+        order_id: orderResponse.order_id, // from backend
+        handler: async (response: any) => {
+          try {
+            setPaymentProcessing(true);
+            // 2. Verify signature on backend (saves payment record in DB)
+            await paymentService.verifySignature(
+              response.razorpay_payment_id,
+              response.razorpay_order_id,
+              response.razorpay_signature,
+              userId || "",
+              assessment.id,
+              undefined,
+              orderResponse.amount
+            );
+
+            setPaymentProcessing(false);
+            handlePaymentSuccess(assessment);
+          } catch (verifyErr) {
+            setPaymentProcessing(false);
+            setPaymentError(
+              verifyErr instanceof Error 
+                ? verifyErr.message 
+                : "Payment verification failed. Please contact support."
+            );
+          }
+        },
+        prefill: {
+          name: userId ? (loadProfile(userId)?.name || user?.name || user?.user_metadata?.name || "") : "",
+          email: userId ? (loadProfile(userId)?.email || user?.email || "") : "",
+          contact: userId ? (loadProfile(userId)?.phone || user?.phone || "") : "",
+        },
+        theme: { color: "#0066cc" },
+        modal: {
+          ondismiss: () => setPaymentProcessing(false),
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", () => {
+        setPaymentProcessing(false);
+        setPaymentError("Payment failed. Please try again or use a different payment method.");
+      });
+      rzp.open();
+    } catch (err) {
+      setPaymentProcessing(false);
+      setPaymentError(err instanceof Error ? err.message : "Could not initiate payment. Please try again.");
+    }
+  };
+
   const handleBackToAssessments = () => {
     setCurrentAssessmentId(null);
     setExamQuestions(null);
@@ -613,7 +768,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                       {renderPrice(assessment.priceNum)}
                       <Button 
                         className="w-full lg:w-auto"
-                        onClick={() => handleStartAssessment(assessment)}
+                        onClick={() => onStartAssessmentClick(assessment)}
                       >
                         <Play className="w-4 h-4 mr-2" />
                         Start Assessment
@@ -805,7 +960,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                             const meta = availableAssessments.find(
                               (a) => a.id === assessment.assessmentId
                             );
-                            if (meta) handleStartAssessment(meta);
+                            if (meta) onStartAssessmentClick(meta);
                           }}
                         >
                           <Play className="w-4 h-4 mr-2" />
@@ -833,6 +988,92 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
           )}
         </TabsContent>
       </Tabs>
+
+        {/* Assessment Unlock / Payment Modal */}
+      {pendingPaymentAssessment && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md shadow-2xl border-0 bg-white">
+            <CardHeader className="pb-4 relative">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-bold">Unlock Assessment</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setPendingPaymentAssessment(null);
+                    setPaymentError(null);
+                  }}
+                  disabled={paymentProcessing}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-slate-100 rounded-full"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-3">
+                <div className="flex items-center space-x-2 text-blue-800">
+                  <Award className="w-5 h-5" />
+                  <span className="font-semibold text-base">{pendingPaymentAssessment.title}</span>
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {pendingPaymentAssessment.description}
+                </p>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-blue-100/50">
+                  <span>{pendingPaymentAssessment.questions} Questions</span>
+                  <span>•</span>
+                  <span>{pendingPaymentAssessment.duration}</span>
+                  <span>•</span>
+                  <span>{pendingPaymentAssessment.difficulty}</span>
+                </div>
+              </div>
+
+              <div className="text-center py-2">
+                <p className="text-sm text-muted-foreground">Amount to Pay</p>
+                <p className="text-4xl font-extrabold text-primary mt-1">
+                  ₹{getAssessmentPrice(pendingPaymentAssessment.priceNum)}
+                </p>
+                {plan === 'professional' && (
+                  <p className="text-xs text-green-600 font-medium mt-1">
+                    50% Discount Applied (Professional Plan)
+                  </p>
+                )}
+              </div>
+
+              {paymentError && (
+                <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{paymentError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Button 
+                  className="w-full h-12 text-base" 
+                  onClick={() => handleTriggerRazorpay(pendingPaymentAssessment)}
+                  disabled={paymentProcessing}
+                >
+                  {paymentProcessing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Opening Payment Gateway…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" />
+                      Pay with Razorpay
+                    </span>
+                  )}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+                  <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                  Secure payment powered by Razorpay
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

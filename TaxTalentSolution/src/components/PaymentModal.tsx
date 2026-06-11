@@ -3,6 +3,9 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { CheckCircle, X, Lock, Star, Building, AlertCircle, CreditCard } from "lucide-react";
+import { getStoredEntraUser } from "../utils/entra/tokenUtils";
+import { paymentService } from "../api/paymentService";
+import { loadProfile } from "../database/profileStore";
 
 // Razorpay checkout.js injects a global constructor
 declare global {
@@ -46,8 +49,6 @@ interface PaymentModalProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-const RAZORPAY_KEY_ID = "rzp_test_Sm529wVNWwQI3D";
 
 /** Convert a display price string (e.g. "₹1,000") to paise */
 function priceToPaise(price: string): number {
@@ -95,21 +96,71 @@ export function PaymentModal({ plan, onClose, onSuccess }: PaymentModalProps) {
     setError(null);
     setProcessing(true);
     try {
+      // Get user details from entra session
+      const entraUser = getStoredEntraUser();
+      const userId = entraUser?.id as string | undefined;
+      if (!userId) {
+        throw new Error("No active user session found. Please sign in again.");
+      }
+
       // Load Razorpay checkout.js
       await loadRazorpayScript();
 
-      // Open Razorpay hosted checkout (order_id is optional – Razorpay creates one internally)
+      // Convert plan display price to Rupees (base currency units)
+      const amountInRupees = parseInt(plan.price.replace(/[₹,\s]/g, ""), 10);
+      if (isNaN(amountInRupees) || amountInRupees <= 0) {
+        throw new Error("Invalid plan price.");
+      }
+
+      // Generate a receipt ID
+      const receiptId = `rcpt_plan_${plan.name.replace(/\s+/g, "_").toLowerCase()}_${Date.now()}`;
+
+      // Create order on FastAPI backend
+      const orderResponse = await paymentService.createOrder(
+        amountInRupees,
+        receiptId,
+        undefined, // assessmentId
+        plan.name  // planName
+      );
+
+      // Open Razorpay hosted checkout
       const options: RazorpayOptions = {
-        key: RAZORPAY_KEY_ID,
-        amount: priceToPaise(plan.price),
-        currency: "INR",
+        key: orderResponse.key_id,
+        amount: orderResponse.amount, // from backend
+        currency: orderResponse.currency, // from backend
         name: "Tax Talent Solution",
         description: `${plan.name} – ${plan.period}`,
-        order_id: "",
-        handler: (_response: RazorpayPaymentResponse) => {
-          setProcessing(false);
-          setPaid(true);
-          setTimeout(() => onSuccess(), 2000);
+        order_id: orderResponse.order_id, // from backend
+        handler: async (response: RazorpayPaymentResponse) => {
+          try {
+            setProcessing(true);
+            // Verify payment signature on FastAPI backend (saves record in DB)
+            await paymentService.verifySignature(
+              response.razorpay_payment_id,
+              response.razorpay_order_id,
+              response.razorpay_signature,
+              userId,
+              undefined, // assessmentId
+              plan.name, // planName
+              orderResponse.amount // amount in paise
+            );
+
+            setProcessing(false);
+            setPaid(true);
+            setTimeout(() => onSuccess(), 2000);
+          } catch (verifyErr) {
+            setProcessing(false);
+            setError(
+              verifyErr instanceof Error 
+                ? verifyErr.message 
+                : "Payment verification failed. Please contact support."
+            );
+          }
+        },
+        prefill: {
+          name: userId ? (loadProfile(userId)?.name || (entraUser?.user_metadata as any)?.name || "") : "",
+          email: userId ? (loadProfile(userId)?.email || (entraUser?.email as string) || "") : "",
+          contact: userId ? (loadProfile(userId)?.phone || "") : "",
         },
         theme: { color: "#6366f1" },
         modal: {

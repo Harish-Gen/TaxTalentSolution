@@ -36,14 +36,19 @@ export function getLinkedInFromClaims(claims: Record<string, unknown>): string {
 
 export function getCityFromClaims(claims: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(claims)) {
-    if (typeof value === "string" && value) {
+    if (value && (typeof value === "string" || typeof value === "number")) {
       const k = key.toLowerCase();
-      if (k.includes("city")) {
-        return value;
+      if (
+        k.includes("city") ||
+        k.includes("locality") ||
+        k === "l" ||
+        k === "loc"
+      ) {
+        return String(value);
       }
     }
   }
-  for (const key of ["city", "city_name", "cityName", "City"]) {
+  for (const key of ["city", "city_name", "cityName", "City", "locality", "l"]) {
     const value = claims[key];
     if (value) return String(value);
   }
@@ -52,14 +57,19 @@ export function getCityFromClaims(claims: Record<string, unknown>): string {
 
 export function getStateFromClaims(claims: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(claims)) {
-    if (typeof value === "string" && value) {
+    if (value && (typeof value === "string" || typeof value === "number")) {
       const k = key.toLowerCase();
-      if (k.includes("state") || k.includes("province") || k.includes("region")) {
-        return value;
+      if (
+        k.includes("state") ||
+        k.includes("province") ||
+        k.includes("region") ||
+        k === "st"
+      ) {
+        return String(value);
       }
     }
   }
-  for (const key of ["state", "state_name", "stateName", "State", "province", "Province"]) {
+  for (const key of ["state", "state_name", "stateName", "State", "province", "Province", "st", "st_name"]) {
     const value = claims[key];
     if (value) return String(value);
   }
@@ -68,14 +78,14 @@ export function getStateFromClaims(claims: Record<string, unknown>): string {
 
 export function getCountryFromClaims(claims: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(claims)) {
-    if (typeof value === "string" && value) {
+    if (value && (typeof value === "string" || typeof value === "number")) {
       const k = key.toLowerCase();
-      if (k.includes("country")) {
-        return value;
+      if (k.includes("country") || k === "co" || k === "cntry" || k === "ctry") {
+        return String(value);
       }
     }
   }
-  for (const key of ["country", "country_name", "countryName", "Country"]) {
+  for (const key of ["country", "country_name", "countryName", "Country", "co", "ctry"]) {
     const value = claims[key];
     if (value) return String(value);
   }

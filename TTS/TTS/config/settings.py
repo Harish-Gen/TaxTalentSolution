@@ -85,5 +85,13 @@ class Settings:
             return env_value
         return self._config.get("AzureStorage", {}).get("ContainerName", "filecontainer")
 
+    @property
+    def razorpay_key_id(self) -> str:
+        return self._config.get("Razorpay", {}).get("KeyId", "rzp_test_Sm529wVNWwQI3D")
+
+    @property
+    def razorpay_key_secret(self) -> str:
+        return self._config.get("Razorpay", {}).get("KeySecret", "rdOpZzzNquvd6jbTtVsnesGb")
+
 
 settings = Settings()

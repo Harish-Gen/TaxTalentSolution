@@ -6,3 +6,4 @@ pydantic
 email-validator
 azure-storage-blob
 python-multipart
+razorpay
