@@ -221,6 +221,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
   const resumeUploadRef = useRef<StorageFileUploadHandle>(null);
   const resumeSectionRef = useRef<HTMLDivElement>(null);
   const skipAutoSaveRef = useRef(true);
+  const dbLoadedRef = useRef(false);
   const [uploadedResume, setUploadedResume] = useState<UploadedStorageFile | null>(null);
 
   const months = [
@@ -621,7 +622,42 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     const savedImg = loadProfileImage(userId);
     setProfileImage(savedImg);
     skipAutoSaveRef.current = true;
-  }, [userId, user]);
+    dbLoadedRef.current = false;
+
+    if (userId && userId !== "guest") {
+      candidateService.getCandidateByUserId(userId, { ensure: true })
+        .then((dbCandidate) => {
+          if (dbCandidate) {
+            const parts = [dbCandidate.location_city, dbCandidate.location_state, dbCandidate.location_country].filter(Boolean);
+            const dbProfile: StoredProfile = {
+              name: dbCandidate.name || base.name || "",
+              title: dbCandidate.headline || base.title || "",
+              location: parts.join(", ") || base.location || "",
+              summary: dbCandidate.summary || base.summary || "",
+              email: dbCandidate.email || base.email || "",
+              phone: dbCandidate.phone || base.phone || "",
+              website: dbCandidate.linkedin_url || base.website || "",
+              availability: dbCandidate.availability || base.availability || "Actively Looking",
+              preferredLocation: "",
+              experience: dbCandidate.experience || [],
+              education: dbCandidate.education || [],
+              skills: dbCandidate.tax_expertise || [],
+              certifications: dbCandidate.certifications || [],
+            };
+            saveProfile(userId, dbProfile);
+            skipAutoSaveRef.current = true;
+            setProfile(dbProfile);
+          }
+          dbLoadedRef.current = true;
+        })
+        .catch((err) => {
+          console.error("Failed to load candidate details from database:", err);
+          dbLoadedRef.current = true;
+        });
+    } else {
+      dbLoadedRef.current = true;
+    }
+  }, [userId, user, accountEmail]);
 
   useEffect(() => {
     if (userId === "guest") {
@@ -709,6 +745,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
 
   // Auto-save profile changes (skills, experience, availability, etc.)
   useEffect(() => {
+    if (!dbLoadedRef.current) return;
     if (skipAutoSaveRef.current) {
       skipAutoSaveRef.current = false;
       return;

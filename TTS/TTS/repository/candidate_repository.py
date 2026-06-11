@@ -34,18 +34,26 @@ class CandidateRepository(ICandidateRepository):
                     data[json_field] = json.loads(data[json_field])
                 except Exception:
                     pass
+        # Add alias fields for linkedinurl
+        if 'linkedinurl' in data:
+            data['linkedin_url'] = data['linkedinurl']
+            data['linkedin'] = data['linkedinurl']
         enrich_row_location(data, table="candidates")
         return data
 
     def _get_user_for_candidate(self, cursor, userid: str) -> Optional[dict]:
         if not userid:
             return None
-        cursor.execute("SELECT * FROM users WHERE id = ?", str(userid))
-        row = cursor.fetchone()
-        if not row:
-            return None
-        columns = [column[0] for column in cursor.description]
-        return dict(zip(columns, row))
+        user_cursor = cursor.connection.cursor()
+        try:
+            user_cursor.execute("SELECT * FROM users WHERE id = ?", str(userid))
+            row = user_cursor.fetchone()
+            if not row:
+                return None
+            columns = [column[0] for column in user_cursor.description]
+            return dict(zip(columns, row))
+        finally:
+            user_cursor.close()
 
     def get_candidate_by_id(self, candidate_id: UUID, include_inactive: bool = False) -> Optional[CandidateResponse]:
         with self._get_connection() as conn:
@@ -67,18 +75,10 @@ class CandidateRepository(ICandidateRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM candidates WHERE isactive = 1")
             rows = cursor.fetchall()
-            columns = [column[0] for column in cursor.description] if cursor.description else []
             
             results = []
             for row in rows:
-                data = dict(zip(columns, row))
-                for json_field in ['taxexpertise', 'certifications', 'experience', 'education']:
-                    if data.get(json_field):
-                        try:
-                            data[json_field] = json.loads(data[json_field])
-                        except Exception:
-                            pass
-                enrich_row_location(data, table="candidates")
+                data = self._row_to_dict(cursor, row)
                 if data.get('userid'):
                     data['user'] = self._get_user_for_candidate(cursor, data['userid'])
                 results.append(CandidateResponse(**data))
@@ -132,6 +132,16 @@ class CandidateRepository(ICandidateRepository):
         email = data.pop('email', None)
         phone = data.pop('phone', None)
         
+        # Resolve different variations of the linkedin URL field to the db field name 'linkedinurl'
+        linkedin_val = None
+        for key in ['linkedinurl', 'linkedin_url', 'linkedin']:
+            if key in data:
+                val = data.pop(key)
+                if val is not None:
+                    linkedin_val = val
+        if linkedin_val is not None:
+            data['linkedinurl'] = linkedin_val
+        
         if any(
             k in data
             for k in (
@@ -155,6 +165,14 @@ class CandidateRepository(ICandidateRepository):
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Resolve userid from database candidate record if candidate_id is present but userid is missing
+            if candidate_id and not userid:
+                cursor.execute("SELECT userid FROM candidates WHERE id = ?", str(candidate_id))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    userid = row[0]
+                    data['userid'] = str(userid)
             
             try:
                 # Upsert User table logic
@@ -267,11 +285,10 @@ class CandidateRepository(ICandidateRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM candidates WHERE isactive = 1")
             rows = cursor.fetchall()
-            columns = [column[0] for column in cursor.description] if cursor.description else []
             
             matching_candidates = []
             for row in rows:
-                data = dict(zip(columns, row))
+                data = self._row_to_dict(cursor, row)
                 db_linkedin = data.get('linkedinurl')
                 if db_linkedin and normalize_linkedin_url(db_linkedin) == normalized_input:
                     matching_candidates.append(data)
@@ -288,25 +305,15 @@ class CandidateRepository(ICandidateRepository):
                 # check if taxexpertise has actual skills (not None, and not ["string"])
                 expertise = cand.get('taxexpertise')
                 if expertise:
-                    try:
-                        parsed = json.loads(expertise)
-                        if isinstance(parsed, list) and len(parsed) > 0 and parsed != ["string"]:
-                            score += len(parsed) * 5
-                    except Exception:
-                        if expertise not in (None, "", '["string"]', '[]'):
-                            score += 5
+                    if isinstance(expertise, list) and len(expertise) > 0 and expertise != ["string"]:
+                        score += len(expertise) * 5
+                    elif isinstance(expertise, str) and expertise not in ("", '["string"]', '[]'):
+                        score += 5
                 score += int(cand.get('profilecompleteness') or 0)
                 return score
                 
             best_candidate = max(matching_candidates, key=score_candidate)
             
-            for json_field in ['taxexpertise', 'certifications', 'experience', 'education']:
-                if best_candidate.get(json_field):
-                    try:
-                        best_candidate[json_field] = json.loads(best_candidate[json_field])
-                    except Exception:
-                        pass
-            enrich_row_location(best_candidate, table="candidates")
             if best_candidate.get('userid'):
                 best_candidate['user'] = self._get_user_for_candidate(cursor, best_candidate['userid'])
             return CandidateResponse(**best_candidate)

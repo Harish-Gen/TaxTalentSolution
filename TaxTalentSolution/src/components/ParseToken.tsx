@@ -8,7 +8,7 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { candidateService, matchCandidateByLinkedInUrl } from "../api/candidateService";
 import { employerService } from "../api/employerService";
-import { saveProfile } from "../database/profileStore";
+import { saveProfile, saveResume } from "../database/profileStore";
 import { LocalDatabase } from "../database/localDb";
 import {
   buildAppUserFromClaims,
@@ -400,47 +400,6 @@ export function ParseToken() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="country">Country</Label>
-                <select
-                  id="country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  required
-                >
-                  {COUNTRIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {c.name} ({c.dial})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    type="text"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="e.g. Bangalore"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="state">State</Label>
-                  <Input
-                    id="state"
-                    type="text"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    placeholder="e.g. Karnataka"
-                    required
-                  />
-                </div>
-              </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone Number</Label>

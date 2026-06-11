@@ -343,6 +343,7 @@ export function ResumeImport() {
         experience_years: f.form.experienceYears || 0,
         summary: f.form.summary,
         resume_url: stored.name,
+        linkedin_url: f.form.linkedinUrl,
         status: "pending",
         availability: "immediate",
         work_mode: "remote",

@@ -26,6 +26,10 @@ class IJobApplicationRepository(ABC):
         pass
 
     @abstractmethod
+    def get_by_job_posting_id(self, jobpostingid: UUID) -> List[JobApplicationResponse]:
+        pass
+
+    @abstractmethod
     def get_by_job_and_candidate(
         self, jobpostingid: UUID, candidateid: UUID
     ) -> Optional[JobApplicationResponse]:

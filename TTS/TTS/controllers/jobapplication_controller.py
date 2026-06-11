@@ -45,6 +45,14 @@ def get_by_employer(employer_id: UUID, repo: IJobApplicationRepository = Depends
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/job/{job_posting_id}", response_model=List[JobApplicationResponse])
+def get_by_job_posting(job_posting_id: UUID, repo: IJobApplicationRepository = Depends(get_repository)):
+    try:
+        return repo.get_by_job_posting_id(job_posting_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{application_id}", response_model=JobApplicationResponse)
 def get_by_id(application_id: UUID, repo: IJobApplicationRepository = Depends(get_repository)):
     try:

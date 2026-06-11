@@ -70,6 +70,17 @@ class JobApplicationRepository(IJobApplicationRepository):
             columns = [column[0] for column in cursor.description] if cursor.description else []
             return [JobApplicationResponse(**dict(zip(columns, row))) for row in rows]
 
+    def get_by_job_posting_id(self, jobpostingid: UUID) -> List[JobApplicationResponse]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM job_applications WHERE jobpostingid = ? AND isactive = 1 ORDER BY appliedat DESC",
+                str(jobpostingid),
+            )
+            rows = cursor.fetchall()
+            columns = [column[0] for column in cursor.description] if cursor.description else []
+            return [JobApplicationResponse(**dict(zip(columns, row))) for row in rows]
+
     def get_by_job_and_candidate(
         self, jobpostingid: UUID, candidateid: UUID
     ) -> Optional[JobApplicationResponse]:

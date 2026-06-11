@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useJobs, useEmployers } from "../../database/hooks";
 import { jobService } from "../../api/jobService";
+import { jobApplicationService } from "../../api/jobApplicationService";
+import { candidateService } from "../../api/candidateService";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -28,7 +30,12 @@ import {
   Users,
   TrendingUp,
   Award,
-  FileText
+  FileText,
+  Eye,
+  Loader2,
+  Mail,
+  Phone,
+  User
 } from "lucide-react";
 
 interface Job {
@@ -105,6 +112,10 @@ export function JobManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editJob, setEditJob] = useState<any | null>(null);
   const [jobToDelete, setJobToDelete] = useState<string | null>(null);
+  const [isApplicantsModalOpen, setIsApplicantsModalOpen] = useState(false);
+  const [applicantsJob, setApplicantsJob] = useState<any | null>(null);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [applicantsLoading, setApplicantsLoading] = useState(false);
 
   // New job form state
   const [newJob, setNewJob] = useState({
@@ -123,6 +134,63 @@ export function JobManagement() {
     closing_date: "",
     status: "active" as any
   });
+
+  const handleViewApplicants = async (job: any) => {
+    setApplicantsJob(job);
+    setApplicantsLoading(true);
+    setApplicants([]);
+    setIsApplicantsModalOpen(true);
+    try {
+      const applications = await jobApplicationService.getByJobPostingId(job.id);
+      // Fetch all candidates once for enrichment
+      let allCandidates: any[] = [];
+      try {
+        allCandidates = await candidateService.getCandidates();
+      } catch {
+        // continue without enrichment
+      }
+      const enriched = applications.map((app) => {
+        const match = allCandidates.find((c) => c.id === app.candidate_id);
+        return {
+          ...app,
+          candidateName: match?.name || match?.headline || "Candidate",
+          candidateEmail: match?.email || "",
+          candidatePhone: match?.phone || "",
+        };
+      });
+      setApplicants(enriched);
+    } catch (error) {
+      console.error("Failed to load applicants:", error);
+      toast.error("Failed to load applicants for this job");
+    } finally {
+      setApplicantsLoading(false);
+    }
+  };
+
+  const getApplicationStatusBadge = (status: string) => {
+    const s = status?.toLowerCase();
+    switch (s) {
+      case "submitted":
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Submitted</Badge>;
+      case "reviewed":
+      case "under_review":
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Under Review</Badge>;
+      case "shortlisted":
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Shortlisted</Badge>;
+      case "interview_scheduled":
+        return <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">Interview Scheduled</Badge>;
+      case "offered":
+        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Offered</Badge>;
+      case "hired":
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" />Hired</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case "withdrawn":
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Withdrawn</Badge>;
+      default:
+        return <Badge>{status || "Unknown"}</Badge>;
+    }
+  };
 
   const jobs = useMemo(() => {
     return dbJobs.map(job => {
@@ -692,6 +760,14 @@ export function JobManagement() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="View Applicants"
+                          onClick={() => handleViewApplicants(job)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => handleEditClick(job)}
                         >
                           <Edit className="w-4 h-4" />
@@ -1034,6 +1110,106 @@ export function JobManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* View Applicants Modal */}
+      <CustomJobModal
+        isOpen={isApplicantsModalOpen}
+        onClose={() => setIsApplicantsModalOpen(false)}
+        title={`Applicants — ${applicantsJob?.title || "Job"}`}
+        description={`${applicantsJob?.employerName || ""} · ${applicants.length} applicant(s)`}
+        footer={
+          <Button variant="outline" onClick={() => setIsApplicantsModalOpen(false)}>Close</Button>
+        }
+      >
+        {applicantsLoading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+            <p className="text-sm text-muted-foreground">Loading applicants...</p>
+          </div>
+        ) : applicants.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Users className="w-10 h-10 text-muted-foreground opacity-40 mb-3" />
+            <h3 className="font-semibold text-lg">No applicants yet</h3>
+            <p className="text-muted-foreground text-sm">No one has applied for this job posting.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Table header */}
+            <div className="grid grid-cols-12 gap-3 px-4 py-2 bg-muted/50 rounded-lg text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="col-span-4">Candidate</div>
+              <div className="col-span-2">Status</div>
+              <div className="col-span-2">Applied</div>
+              <div className="col-span-2">Expected CTC</div>
+              <div className="col-span-2">Current CTC</div>
+            </div>
+            {applicants.map((app) => (
+              <Card key={app.id} className="overflow-hidden hover:border-primary/30 transition-colors">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-12 gap-3 items-center">
+                    {/* Candidate info */}
+                    <div className="col-span-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{app.candidateName}</p>
+                          {app.candidateEmail && (
+                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {app.candidateEmail}
+                            </p>
+                          )}
+                          {app.candidatePhone && (
+                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {app.candidatePhone}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Status */}
+                    <div className="col-span-2">
+                      {getApplicationStatusBadge(app.status)}
+                    </div>
+                    {/* Applied date */}
+                    <div className="col-span-2">
+                      <span className="text-sm text-muted-foreground">
+                        {app.applied_at ? new Date(app.applied_at).toLocaleDateString() : "N/A"}
+                      </span>
+                    </div>
+                    {/* Expected compensation */}
+                    <div className="col-span-2">
+                      <span className="text-sm">
+                        {app.expected_compensation
+                          ? `₹${(app.expected_compensation / 100000).toFixed(1)}L`
+                          : "—"}
+                      </span>
+                    </div>
+                    {/* Current compensation */}
+                    <div className="col-span-2">
+                      <span className="text-sm">
+                        {app.current_compensation
+                          ? `₹${(app.current_compensation / 100000).toFixed(1)}L`
+                          : "—"}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Cover letter / notes preview */}
+                  {app.cover_letter && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        <span className="font-medium">Cover Letter:</span> {app.cover_letter}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </CustomJobModal>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>

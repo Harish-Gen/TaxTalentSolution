@@ -205,8 +205,10 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [editForm, setEditForm] = useState({
+    userid: "",
     name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
     experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
+    linkedin_url: "",
   });
   
   // Fetch from database
@@ -304,6 +306,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       const fresh = await candidateService.getCandidateById(candidate.id);
       setEditingCandidate(candidate);
       setEditForm({
+        userid: fresh.user_id || '',
         name: fresh.name || candidate.name || '',
         email: fresh.email || candidate.email,
         phone: fresh.phone || candidate.phone,
@@ -315,6 +318,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         availability: fresh.availability || 'immediate',
         work_mode: fresh.work_mode || 'remote',
         hourly_rate: fresh.hourly_rate || 0,
+        linkedin_url: fresh.linkedin_url || '',
       });
     } catch (error) {
       console.error("Failed to fetch candidate data:", error);
@@ -323,16 +327,19 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       const dbRecord = dbCandidates.find(c => c.id === candidate.id);
       setEditingCandidate(candidate);
       setEditForm({
+        userid: dbRecord?.user_id || '',
         name: candidate.name,
         email: candidate.email,
         phone: candidate.phone,
         location_city: dbRecord?.location_city || '',
         location_state: dbRecord?.location_state || '',
+        location_country: dbRecord?.location_country || 'IN',
         experience_years: candidate.experience,
         headline: dbRecord?.headline || '',
         availability: dbRecord?.availability || 'immediate',
         work_mode: dbRecord?.work_mode || 'remote',
         hourly_rate: dbRecord?.hourly_rate || 0,
+        linkedin_url: dbRecord?.linkedin_url || '',
       });
     }
   };
@@ -343,6 +350,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
     try {
       await candidateService.upsertCandidate({
         id: editingCandidate.id,
+        userid: editForm.userid,
         name: editForm.name,
         email: editForm.email,
         phone: editForm.phone,
@@ -354,6 +362,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         availability: editForm.availability as any,
         work_mode: editForm.work_mode as any,
         hourly_rate: editForm.hourly_rate,
+        linkedin_url: editForm.linkedin_url,
       });
 
       const freshList = await candidateService.getCandidates();
@@ -409,6 +418,7 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
         availability: editForm.availability as any,
         work_mode: editForm.work_mode as any,
         hourly_rate: editForm.hourly_rate,
+        linkedin_url: editForm.linkedin_url,
         status: 'pending',
       });
       
@@ -417,8 +427,10 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       setIsAddingCandidate(false);
       // Reset form
       setEditForm({
+        userid: "",
         name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
         experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
+        linkedin_url: "",
       });
     } catch (error) {
       console.error('Failed to create candidate:', error);
@@ -470,8 +482,10 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
       setIsAddingCandidate(false);
       if (!isEditing) {
         setEditForm({
+          userid: "",
           name: "", email: "", phone: "", location_city: "", location_state: "", location_country: "IN",
           experience_years: 0, headline: "", availability: "immediate", work_mode: "remote", hourly_rate: 0,
+          linkedin_url: "",
         });
       }
     };
@@ -512,10 +526,18 @@ const [statusOverrides, setStatusOverrides] = useState<Record<string, "approved"
               </div>
             </div>
 
-            <div>
-              <Label>Headline / Title</Label>
-              <Input className="mt-1" value={editForm.headline}
-                onChange={e => setEditForm(f => ({ ...f, headline: e.target.value }))} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Headline / Title</Label>
+                <Input className="mt-1" value={editForm.headline}
+                  onChange={e => setEditForm(f => ({ ...f, headline: e.target.value }))} />
+              </div>
+              <div>
+                <Label>LinkedIn Profile URL</Label>
+                <Input className="mt-1" value={editForm.linkedin_url}
+                  placeholder="e.g. linkedin.com/in/username"
+                  onChange={e => setEditForm(f => ({ ...f, linkedin_url: e.target.value }))} />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

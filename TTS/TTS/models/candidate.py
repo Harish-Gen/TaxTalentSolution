@@ -27,6 +27,8 @@ class CandidateCreateUpdate(BaseModel):
     stage: Optional[str] = None
     isactive: Optional[bool] = None
     linkedinurl: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    linkedin: Optional[str] = None
     experience: Optional[Union[List[dict], str]] = None
     education: Optional[Union[List[dict], str]] = None
 

@@ -65,6 +65,13 @@ export const jobApplicationService = {
     return data.map(mapToFrontend);
   },
 
+  async getByJobPostingId(jobPostingId: string): Promise<JobApplication[]> {
+    const data = await apiRequest<BackendJobApplication[]>(
+      `/api/jobapplications/job/${jobPostingId}`
+    );
+    return data.map(mapToFrontend);
+  },
+
   async submit(application: {
     jobpostingid: string;
     candidateid: string;
