@@ -23,3 +23,8 @@ class ICandidateRepository(ABC):
     @abstractmethod
     def upsert_candidate(self, candidate: CandidateCreateUpdate) -> CandidateResponse:
         pass
+
+    @abstractmethod
+    def get_candidate_by_linkedin_url(self, url: str) -> Optional[CandidateResponse]:
+        pass
+

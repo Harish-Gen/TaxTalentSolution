@@ -26,6 +26,10 @@ class CandidateCreateUpdate(BaseModel):
     status: Optional[str] = None
     stage: Optional[str] = None
     isactive: Optional[bool] = None
+    linkedinurl: Optional[str] = None
+    experience: Optional[Union[List[dict], str]] = None
+    education: Optional[Union[List[dict], str]] = None
+
 
 from pydantic import Field
 

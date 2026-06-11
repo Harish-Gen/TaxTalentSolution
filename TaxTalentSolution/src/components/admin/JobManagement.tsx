@@ -17,7 +17,6 @@ import {
   Edit,
   Trash2,
   Briefcase,
-  Eye,
   MapPin,
   DollarSign,
   Calendar,
@@ -664,27 +663,12 @@ export function JobManagement() {
                             {job.applicant_count || 0} applicants
                           </span>
                           <span>•</span>
-                          <span className="flex items-center">
-                            <Eye className="w-3 h-3 mr-1" />
-                            {job.view_count || 0} views
-                          </span>
-                          <span>•</span>
                           <span>Posted: {new Date(job.posted_date).toLocaleDateString()}</span>
                           <span>•</span>
                           <span>Closes: {job.closing_date ? new Date(job.closing_date).toLocaleDateString() : 'N/A'}</span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 ml-4">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedJob(job);
-                            setIsViewDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -933,20 +917,12 @@ export function JobManagement() {
                 </div>
               </DialogHeader>
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-center">
                       <p className="text-2xl font-bold text-blue-600">{selectedJob.applicant_count || 0}</p>
                       <p className="text-xs text-muted-foreground mt-1">Applicants</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-purple-600">{selectedJob.view_count || 0}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Views</p>
                     </div>
                   </CardContent>
                 </Card>

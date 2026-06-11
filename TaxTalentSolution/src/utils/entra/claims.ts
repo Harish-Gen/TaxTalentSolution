@@ -4,18 +4,82 @@
  */
 export function getPhoneFromClaims(claims: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(claims)) {
-    if (
-      typeof value === "string" &&
-      value &&
-      key.startsWith("extension_") &&
-      /phone/i.test(key)
-    ) {
-      return value;
+    if (typeof value === "string" && value) {
+      const k = key.toLowerCase();
+      if (k.startsWith("extension_") && k.includes("phone")) {
+        return value;
+      }
     }
   }
-  for (const key of ["phone_number", "mobile", "PhoneNumber"]) {
+  for (const key of ["phone_number", "mobile", "PhoneNumber", "telephoneNumber"]) {
     const value = claims[key];
     if (value) return String(value);
   }
   return "";
 }
+
+export function getLinkedInFromClaims(claims: Record<string, unknown>): string {
+  for (const [key, value] of Object.entries(claims)) {
+    if (typeof value === "string" && value) {
+      const k = key.toLowerCase();
+      if (k.includes("linkedin")) {
+        return value;
+      }
+    }
+  }
+  for (const key of ["linkedin", "linkedin_url", "linkedInUrl", "LinkedInUrl", "LinkedInProfileURL"]) {
+    const value = claims[key];
+    if (value) return String(value);
+  }
+  return "";
+}
+
+export function getCityFromClaims(claims: Record<string, unknown>): string {
+  for (const [key, value] of Object.entries(claims)) {
+    if (typeof value === "string" && value) {
+      const k = key.toLowerCase();
+      if (k.includes("city")) {
+        return value;
+      }
+    }
+  }
+  for (const key of ["city", "city_name", "cityName", "City"]) {
+    const value = claims[key];
+    if (value) return String(value);
+  }
+  return "";
+}
+
+export function getStateFromClaims(claims: Record<string, unknown>): string {
+  for (const [key, value] of Object.entries(claims)) {
+    if (typeof value === "string" && value) {
+      const k = key.toLowerCase();
+      if (k.includes("state") || k.includes("province") || k.includes("region")) {
+        return value;
+      }
+    }
+  }
+  for (const key of ["state", "state_name", "stateName", "State", "province", "Province"]) {
+    const value = claims[key];
+    if (value) return String(value);
+  }
+  return "";
+}
+
+export function getCountryFromClaims(claims: Record<string, unknown>): string {
+  for (const [key, value] of Object.entries(claims)) {
+    if (typeof value === "string" && value) {
+      const k = key.toLowerCase();
+      if (k.includes("country")) {
+        return value;
+      }
+    }
+  }
+  for (const key of ["country", "country_name", "countryName", "Country"]) {
+    const value = claims[key];
+    if (value) return String(value);
+  }
+  return "";
+}
+
+

@@ -53,6 +53,22 @@ import {
   clearResume,
   type StoredProfile,
 } from "../../database/profileStore";
+import { LocalDatabase } from "../../database/localDb";
+import { candidateService, matchCandidateByLinkedInUrl } from "../../api/candidateService";
+
+function calculateProfileCompleteness(prof: StoredProfile): number {
+  let score = 10; // base score
+  if (prof.name) score += 10;
+  if (prof.title) score += 15;
+  if (prof.location) score += 10;
+  if (prof.summary) score += 15;
+  if (prof.skills && prof.skills.length > 0) score += 15;
+  if (prof.experience && prof.experience.length > 0) score += 15;
+  if (prof.education && prof.education.length > 0) score += 10;
+  return Math.min(score, 100);
+}
+
+
 
 interface ProfilePageProps {
   user: any;
@@ -647,6 +663,39 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     const profileToSave = { ...profile, email: accountEmail || profile.email };
     saveProfile(userId, profileToSave);
     if (profileImage) saveProfileImage(userId, profileImage);
+
+    // Sync to backend database
+    candidateService.getCandidateByUserId(userId, { ensure: true })
+      .then((dbCandidate) => {
+        if (dbCandidate) {
+          const parts = (profileToSave.location || "").split(",").map((s) => s.trim());
+          const city = parts[0] || "";
+          const state = parts[1] || "";
+          const country = parts[2] || "IN";
+
+          candidateService.upsertCandidate({
+            id: dbCandidate.id,
+            user_id: userId,
+            name: profileToSave.name,
+            phone: profileToSave.phone,
+            location_city: city,
+            location_state: state,
+            location_country: country,
+            linkedin_url: profileToSave.website,
+            headline: profileToSave.title,
+            summary: profileToSave.summary,
+            taxexpertise: profileToSave.skills,
+            certifications: profileToSave.certifications,
+            profile_completeness: calculateProfileCompleteness(profileToSave),
+          }).catch((err) => {
+            console.error("Failed to save profile to database:", err);
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to retrieve database candidate for save:", err);
+      });
+
     window.setTimeout(() => setSaveStatus("saved"), 400);
     window.setTimeout(() => setSaveStatus("idle"), 2500);
   }, [userId, profile, profileImage, accountEmail]);
@@ -682,18 +731,44 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
   }, [userId, user, accountEmail]);
 
   const handleConnectLinkedIn = () => {
-    if (!linkedInInputUrl.trim()) {
+    const url = linkedInInputUrl.trim();
+    if (!url) {
       setLinkedInStatus('not-found');
       setLinkedInMessage('Please enter a LinkedIn profile URL.');
       return;
     }
     setLinkedInStatus('loading');
     setLinkedInMessage('');
-    setTimeout(() => {
-      setProfile((prev) => ({ ...prev, website: linkedInInputUrl.trim() }));
-      setLinkedInStatus('not-found');
-      setLinkedInMessage('LinkedIn URL saved to your profile. Profile import from LinkedIn is not connected yet.');
-    }, 400);
+    
+    matchCandidateByLinkedInUrl(url)
+      .then((linkedInMatch) => {
+        if (linkedInMatch) {
+          setProfile((prev) => ({
+            ...prev,
+            name: linkedInMatch.name || prev.name,
+            title: linkedInMatch.title || prev.title,
+            location: linkedInMatch.location || prev.location,
+            summary: linkedInMatch.summary || prev.summary,
+            website: linkedInMatch.website || url,
+            experience: linkedInMatch.experience || prev.experience,
+            education: linkedInMatch.education || prev.education,
+            skills: linkedInMatch.skills || prev.skills,
+            certifications: linkedInMatch.certifications || prev.certifications,
+          }));
+          setLinkedInStatus('found');
+          setLinkedInMessage('LinkedIn profile successfully imported and synced!');
+        } else {
+          setProfile((prev) => ({ ...prev, website: url }));
+          setLinkedInStatus('not-found');
+          setLinkedInMessage('LinkedIn URL saved to your profile. Profile import from LinkedIn is not connected yet.');
+        }
+      })
+      .catch((err) => {
+        console.error("LinkedIn match failed:", err);
+        setProfile((prev) => ({ ...prev, website: url }));
+        setLinkedInStatus('not-found');
+        setLinkedInMessage('LinkedIn URL saved to your profile. Profile import from LinkedIn is not connected yet.');
+      });
   };
 
   return (
@@ -903,16 +978,16 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <Button
-                      variant="outline"
+                      variant={profile.website ? "secondary" : "outline"}
                       onClick={() => {
-                        setLinkedInInputUrl("");
+                        setLinkedInInputUrl(profile.website || "");
                         setLinkedInStatus("idle");
                         setLinkedInMessage("");
                         setShowLinkedInDialog(true);
                       }}
                     >
                       <Link2 className="w-4 h-4 mr-2" />
-                      Connect LinkedIn
+                      {profile.website ? "LinkedIn Connected" : "Connect LinkedIn"}
                     </Button>
                     <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
                       <Edit className="w-4 h-4 mr-2" />
@@ -1046,9 +1121,18 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
                     </div>
                     <div className="flex items-center">
                       <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
-                      <a href={`https://${profile.website}`} className="text-primary hover:underline">
-                        {profile.website}
-                      </a>
+                      {profile.website ? (
+                        <a 
+                          href={profile.website.startsWith('http://') || profile.website.startsWith('https://') ? profile.website : `https://${profile.website}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-primary hover:underline"
+                        >
+                          {profile.website}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">No website/LinkedIn linked</span>
+                      )}
                     </div>
                   </div>
                 </>

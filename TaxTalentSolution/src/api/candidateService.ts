@@ -1,5 +1,7 @@
 import { apiRequest } from './apiService';
 import type { Candidate as DBCandidate, CandidateStatus } from '../database/types';
+import { LocalDatabase } from '../database/localDb';
+
 
 export interface BackendCandidateUser {
   id?: string;
@@ -35,7 +37,25 @@ export interface BackendCandidate {
   isactive?: boolean;
   createdon?: string;
   modifiedon?: string;
+  linkedinurl?: string;
+  experience?: any;
+  education?: any;
 }
+
+export function parseJsonArray(value?: any): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 
 export function parseTaxExpertise(value?: string[] | string): string[] {
   if (!value) return [];
@@ -82,11 +102,15 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & {
   firstname?: string;
   lastname?: string;
   tax_expertise?: string[];
+  certifications?: string[];
+  experience?: any[];
+  education?: any[];
 } {
   const backendAny = backend as BackendCandidate & {
     locationcity?: string;
     locationstate?: string;
     locationcountry?: string;
+    linkedinurl?: string;
   };
   const isLocationObject = backend.location && typeof backend.location === 'object' && !Array.isArray(backend.location);
   const city =
@@ -122,6 +146,10 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & {
     created_at: backend.createdon || new Date().toISOString(),
     updated_at: backend.modifiedon || new Date().toISOString(),
     tax_expertise: parseTaxExpertise(backend.taxexpertise),
+    certifications: parseTaxExpertise(backend.certifications),
+    experience: parseJsonArray(backend.experience),
+    education: parseJsonArray(backend.education),
+    linkedin_url: backendAny.linkedinurl || '',
   };
 }
 
@@ -155,6 +183,9 @@ function mapToBackend(frontend: any): Partial<BackendCandidate> & { userid?: str
     status: frontend.status || 'pending',
     stage: frontend.stage || "string",
     isactive: frontend.isactive ?? true,
+    linkedinurl: frontend.linkedin_url || '',
+    experience: frontend.experience || [],
+    education: frontend.education || [],
   };
 }
 
@@ -193,5 +224,98 @@ export const candidateService = {
 
   async updateStatus(id: string, status: CandidateStatus): Promise<DBCandidate & { name?: string; email?: string; phone?: string }> {
     return this.upsertCandidate({ id, status });
+  },
+
+  async getCandidateByLinkedInUrl(
+    url: string
+  ): Promise<(DBCandidate & { name?: string; email?: string; phone?: string; tax_expertise?: string[]; certifications?: string[] }) | null> {
+    try {
+      const data = await apiRequest<BackendCandidate | null>(
+        `/api/candidates/linkedin?url=${encodeURIComponent(url)}`
+      );
+      if (!data) return null;
+      return mapToDBCandidate(data);
+    } catch {
+      return null;
+    }
   }
 };
+
+export async function matchCandidateByLinkedInUrl(url: string): Promise<{
+  name: string;
+  title: string;
+  location: string;
+  summary: string;
+  email: string;
+  phone: string;
+  website: string;
+  skills: string[];
+  certifications: string[];
+  experience: Array<{ id: number; company: string; position: string; duration: string; location: string; description: string }>;
+  education: Array<{ id: number; institution: string; degree: string; field: string; duration: string; description: string }>;
+} | null> {
+  try {
+    const dbCandidate = await candidateService.getCandidateByLinkedInUrl(url);
+    if (dbCandidate) {
+      const name = dbCandidate.name || '';
+      const email = dbCandidate.email || '';
+      const phone = dbCandidate.phone || '';
+      const title = dbCandidate.headline || '';
+      const location = [dbCandidate.location_city, dbCandidate.location_state, dbCandidate.location_country].filter(Boolean).join(', ');
+      const summary = dbCandidate.summary || '';
+      const website = dbCandidate.linkedin_url || url;
+      const skills = dbCandidate.tax_expertise || [];
+      const certifications = dbCandidate.certifications || [];
+      
+      const localMatch = LocalDatabase.getLinkedInMappedProfile(dbCandidate.id);
+      const experience = dbCandidate.experience && dbCandidate.experience.length > 0
+        ? dbCandidate.experience
+        : (localMatch?.experience || [
+            {
+              id: 1,
+              company: 'Tax Consulting Firm',
+              position: title || 'Tax Professional',
+              duration: `Jan ${new Date().getFullYear() - (dbCandidate.experience_years || 3)} - Present`,
+              location: location,
+              description: summary,
+            }
+          ]);
+      const education = dbCandidate.education && dbCandidate.education.length > 0
+        ? dbCandidate.education
+        : (localMatch?.education || [
+            {
+              id: 1,
+              institution: 'University',
+              degree: 'Bachelor of Commerce (B.Com)',
+              field: 'Accounting & Finance',
+              duration: `${new Date().getFullYear() - (dbCandidate.experience_years || 3) - 4} - ${new Date().getFullYear() - (dbCandidate.experience_years || 3)}`,
+              description: '',
+            }
+          ]);
+
+      return {
+        name,
+        title,
+        location,
+        summary,
+        email,
+        phone,
+        website,
+        skills,
+        certifications,
+        experience,
+        education,
+      };
+    }
+  } catch (err) {
+    console.error("Backend candidate match failed, falling back to mock local db:", err);
+  }
+
+  const matchedCandidate = LocalDatabase.getCandidateByLinkedInUrl(url);
+  if (matchedCandidate) {
+    return LocalDatabase.getLinkedInMappedProfile(matchedCandidate.id);
+  }
+
+  return null;
+}
+

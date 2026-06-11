@@ -1239,3 +1239,104 @@ export function useInterviews() {
 
   return { interviews };
 }
+
+export function useCertificate(id: string | undefined) {
+  const [certificate, setCertificate] = useState<Certificate | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      setCertificate(null);
+      return;
+    }
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        if (id.startsWith('local-')) {
+          const parts = id.split('-');
+          let assessmentId = '';
+          let targetUserId = '';
+
+          if (parts.length === 2) {
+            assessmentId = parts[1];
+          } else if (parts.length >= 3) {
+            targetUserId = parts[1];
+            assessmentId = parts.slice(2).join('-');
+          }
+
+          let match: StoredUserAssessment | null = null;
+          let foundUserId = '';
+
+          if (targetUserId) {
+            const list = loadUserAssessments(targetUserId);
+            const found = list.find(r => r.assessmentId === assessmentId && r.status === 'completed');
+            if (found) {
+              match = found;
+              foundUserId = targetUserId;
+            }
+          }
+
+          if (!match) {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('tts_user_assessment_')) {
+                const userIdFromKey = key.replace('tts_user_assessment_', '');
+                try {
+                  const list = JSON.parse(localStorage.getItem(key) || '[]') as StoredUserAssessment[];
+                  const found = list.find(r =>
+                    (r.assessmentId === assessmentId || key.includes(id.replace('local-', ''))) &&
+                    r.status === 'completed'
+                  );
+                  if (found) {
+                    match = found;
+                    foundUserId = userIdFromKey;
+                    break;
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+
+          if (match) {
+            const expiry = new Date(match.completedAt || new Date().toISOString());
+            expiry.setFullYear(expiry.getFullYear() + 2);
+            setCertificate({
+              id: id,
+              candidate_id: foundUserId || 'local-candidate',
+              assessment_id: match.assessmentId,
+              credential_id: match.credentialId || `TT-${match.assessmentId.slice(0, 8).toUpperCase()}-${Date.now()}`,
+              title: match.title,
+              score: match.score ?? 0,
+              percentile: undefined,
+              level: (match.score ?? 0) >= 85 ? 'expert' : 'professional',
+              issue_date: match.completedAt || new Date().toISOString(),
+              expiry_date: expiry.toISOString(),
+              skills_validated: [],
+              is_valid: true,
+              created_at: match.completedAt || new Date().toISOString(),
+            });
+          } else {
+            setCertificate(null);
+          }
+        } else {
+          const result = await certificateService.getById(id);
+          setCertificate(result);
+        }
+      } catch (error) {
+        console.error(`Failed to fetch certificate ${id}:`, error);
+        setCertificate(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
+
+  return { certificate, loading };
+}
+

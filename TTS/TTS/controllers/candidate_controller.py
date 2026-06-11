@@ -44,6 +44,20 @@ def get_candidate_by_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/linkedin", response_model=Optional[CandidateResponse])
+def get_candidate_by_linkedin(
+    url: str,
+    repo: ICandidateRepository = Depends(get_candidate_repository)
+):
+    """
+    Retrieve candidate profile by LinkedIn URL.
+    """
+    try:
+        return repo.get_candidate_by_linkedin_url(url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{candidate_id}", response_model=CandidateResponse)
 def get_candidate(candidate_id: UUID, repo: ICandidateRepository = Depends(get_candidate_repository)):
     """
@@ -79,3 +93,6 @@ def upsert_candidate(candidate: CandidateCreateUpdate, repo: ICandidateRepositor
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+

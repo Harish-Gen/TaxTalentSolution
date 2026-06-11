@@ -1,10 +1,12 @@
-﻿import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
-import { Award, Download, Share2, ArrowLeft, CheckCircle } from "lucide-react";
+import { Award, Download, Share2, ArrowLeft, CheckCircle, Link, Linkedin } from "lucide-react";
 import { assetUrl } from "../../utils/appPaths";
 import { getProfileDisplayName } from "../../database/profileStore";
+import { toast } from "sonner";
 
 export interface CertificateViewData {
+  id?: string;
   title: string;
   score: number;
   issueDate: string;
@@ -171,14 +173,22 @@ export function Certificate1040({ onBack, user, certificate }: Certificate1040Pr
       setDownloading(false);
     }
   };
+  const getShareUrl = () => {
+    const certId = certificate?.id || "local-1040";
+    return `${window.location.origin}/static/?view=public-certificate&id=${certId}`;
+  };
+
   const handleShare = () => {
-    const text = `I earned my ${cert.title} certification with ${cert.score}% on TaxTalent! 🎓 #TaxProfessional #Certification`;
+    const shareUrl = getShareUrl();
     window.open(
-      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-        window.location.href
-      )}&text=${encodeURIComponent(text)}`,
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
       "_blank"
     );
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(getShareUrl());
+    toast.success("Certificate link copied to clipboard!");
   };
 
   return (
@@ -195,8 +205,12 @@ export function Certificate1040({ onBack, user, certificate }: Certificate1040Pr
             <Download className="w-4 h-4 mr-2" />
             {downloading ? "Generating PDF…" : "Download PDF"}
           </Button>
+          <Button variant="outline" onClick={handleCopyLink}>
+            <Link className="w-4 h-4 mr-2" />
+            Copy Link
+          </Button>
           <Button variant="outline" onClick={handleShare}>
-            <Share2 className="w-4 h-4 mr-2" />
+            <Linkedin className="w-4 h-4 mr-2" />
             Share on LinkedIn
           </Button>
         </div>
@@ -352,7 +366,11 @@ export function Certificate1040({ onBack, user, certificate }: Certificate1040Pr
           </p>
           <div className="flex gap-3">
             <Button size="sm" onClick={handleShare} className="bg-blue-700 hover:bg-blue-800">
+              <Linkedin className="w-4 h-4 mr-2" />
               Share on LinkedIn
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleCopyLink}>
+              Copy Link
             </Button>
             <Button size="sm" variant="outline" onClick={handleDownload} disabled={downloading}>
               {downloading ? "Generating…" : "Download PDF"}

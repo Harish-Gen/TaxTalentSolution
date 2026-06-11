@@ -63,6 +63,11 @@ export const certificateService = {
     return data.map(mapToFrontend);
   },
 
+  async getById(id: string): Promise<Certificate> {
+    const data = await apiRequest<BackendCertificate>(`/api/certificates/${id}`);
+    return mapToFrontend(data);
+  },
+
   async create(certificate: {
     candidateid: string;
     userid?: string;

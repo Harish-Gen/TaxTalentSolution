@@ -110,4 +110,10 @@ export function buildAppUserFromClaims(
   };
 }
 
-export { getPhoneFromClaims } from "./claims";
+export {
+  getPhoneFromClaims,
+  getLinkedInFromClaims,
+  getCityFromClaims,
+  getStateFromClaims,
+  getCountryFromClaims,
+} from "./claims";

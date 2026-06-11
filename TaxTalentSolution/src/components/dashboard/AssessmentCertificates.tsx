@@ -18,7 +18,9 @@ import {
   Download,
   Share2,
   Eye,
-  Loader2
+  Loader2,
+  Link,
+  Linkedin
 } from "lucide-react";
 import { useAssessments, useCertificates, useUserAssessmentActivity } from "../../database";
 import { getSubscription } from "../../database/userStore";
@@ -414,6 +416,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   }) => {
     if (!is1040Certificate(cert)) return;
     setSelectedCertificate({
+      id: cert.id,
       title: cert.title,
       score: cert.score,
       issueDate: cert.issueDate,
@@ -423,6 +426,24 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
       description: cert.description,
     });
     setShowCertificate("1040");
+  };
+
+  const getCertificateShareUrl = (certId: string) => {
+    return `${window.location.origin}/static/?view=public-certificate&id=${certId}`;
+  };
+
+  const handleCopyCertificateLink = (certId: string) => {
+    navigator.clipboard.writeText(getCertificateShareUrl(certId));
+    toast.success("Certificate link copied to clipboard!");
+  };
+
+  const handleShareCertificateLinkedIn = (certId: string) => {
+    window.open(
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+        getCertificateShareUrl(certId)
+      )}`,
+      "_blank"
+    );
   };
 
   const handleBackToCertificates = () => {
@@ -690,12 +711,22 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                             <Eye className="w-4 h-4 mr-2" />
                             View Certificate
                           </Button>
-                          <Button variant="outline" size="sm" className="bg-white">
-                            <Download className="w-4 h-4 mr-2" />
-                            Download PDF
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white"
+                            onClick={() => handleCopyCertificateLink(cert.id)}
+                          >
+                            <Link className="w-4 h-4 mr-2" />
+                            Copy Link
                           </Button>
-                          <Button variant="outline" size="sm" className="bg-white">
-                            <Share2 className="w-4 h-4 mr-2" />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white"
+                            onClick={() => handleShareCertificateLinkedIn(cert.id)}
+                          >
+                            <Linkedin className="w-4 h-4 mr-2" />
                             Share on LinkedIn
                           </Button>
                         </div>
@@ -722,12 +753,20 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
                         </div>
                       </div>
                       <div className="flex space-x-2">
-                        <Button variant="outline" size="sm">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleCopyCertificateLink(cert.id)}
+                        >
+                          <Link className="w-4 h-4 mr-2" />
+                          Copy Link
                         </Button>
-                        <Button variant="outline" size="sm">
-                          <Share2 className="w-4 h-4 mr-2" />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleShareCertificateLinkedIn(cert.id)}
+                        >
+                          <Linkedin className="w-4 h-4 mr-2" />
                           Share
                         </Button>
                       </div>

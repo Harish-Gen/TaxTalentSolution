@@ -5,7 +5,18 @@ from typing import List, Optional
 from interfaces.icandidate_repository import ICandidateRepository
 from models.candidate import CandidateCreateUpdate, CandidateResponse
 from config.settings import settings
+import re
 from utils.location_fields import apply_location_to_payload, enrich_row_location
+
+def normalize_linkedin_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    url = url.strip().lower()
+    url = re.sub(r'^https?://', '', url)
+    url = re.sub(r'^www\.', '', url)
+    url = url.rstrip('/')
+    return url
+
 
 class CandidateRepository(ICandidateRepository):
     def _get_connection(self):
@@ -17,7 +28,7 @@ class CandidateRepository(ICandidateRepository):
         columns = [column[0] for column in cursor.description]
         data = dict(zip(columns, row))
         
-        for json_field in ['taxexpertise', 'certifications']:
+        for json_field in ['taxexpertise', 'certifications', 'experience', 'education']:
             if data.get(json_field):
                 try:
                     data[json_field] = json.loads(data[json_field])
@@ -61,7 +72,7 @@ class CandidateRepository(ICandidateRepository):
             results = []
             for row in rows:
                 data = dict(zip(columns, row))
-                for json_field in ['taxexpertise', 'certifications']:
+                for json_field in ['taxexpertise', 'certifications', 'experience', 'education']:
                     if data.get(json_field):
                         try:
                             data[json_field] = json.loads(data[json_field])
@@ -135,7 +146,7 @@ class CandidateRepository(ICandidateRepository):
         ):
             apply_location_to_payload(data, table="candidates")
 
-        for field in ['taxexpertise', 'certifications']:
+        for field in ['taxexpertise', 'certifications', 'experience', 'education']:
             if field in data and isinstance(data[field], (dict, list)):
                 data[field] = json.dumps(data[field])
 
@@ -195,6 +206,23 @@ class CandidateRepository(ICandidateRepository):
                         existing_row = cursor.fetchone()
                         if existing_row:
                             candidate_id = existing_row[0]
+                        else:
+                            # Try to match by linkedinurl if no existing candidate record is linked to this user yet
+                            linkedinurl = data.get('linkedinurl')
+                            if linkedinurl:
+                                normalized_input = normalize_linkedin_url(linkedinurl)
+                                cursor.execute("SELECT id, userid, linkedinurl FROM candidates WHERE isactive = 1")
+                                rows = cursor.fetchall()
+                                for row in rows:
+                                    db_id, db_userid, db_linkedin = row
+                                    if db_linkedin and normalize_linkedin_url(db_linkedin) == normalized_input:
+                                        candidate_id = db_id
+                                        # Link this existing candidate to the new user ID
+                                        cursor.execute(
+                                            "UPDATE candidates SET userid = ? WHERE id = ?",
+                                            (str(userid), str(candidate_id))
+                                        )
+                                        break
 
                     if candidate_id and data:
                         set_clauses = []
@@ -230,3 +258,57 @@ class CandidateRepository(ICandidateRepository):
                 raise e
             
         return self.get_candidate_by_id(candidate_id, include_inactive=True)
+
+    def get_candidate_by_linkedin_url(self, url: str) -> Optional[CandidateResponse]:
+        if not url:
+            return None
+        normalized_input = normalize_linkedin_url(url)
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM candidates WHERE isactive = 1")
+            rows = cursor.fetchall()
+            columns = [column[0] for column in cursor.description] if cursor.description else []
+            
+            matching_candidates = []
+            for row in rows:
+                data = dict(zip(columns, row))
+                db_linkedin = data.get('linkedinurl')
+                if db_linkedin and normalize_linkedin_url(db_linkedin) == normalized_input:
+                    matching_candidates.append(data)
+                    
+            if not matching_candidates:
+                return None
+                
+            def score_candidate(cand):
+                score = 0
+                if cand.get('headline'):
+                    score += 10
+                if cand.get('summary'):
+                    score += 10
+                # check if taxexpertise has actual skills (not None, and not ["string"])
+                expertise = cand.get('taxexpertise')
+                if expertise:
+                    try:
+                        parsed = json.loads(expertise)
+                        if isinstance(parsed, list) and len(parsed) > 0 and parsed != ["string"]:
+                            score += len(parsed) * 5
+                    except Exception:
+                        if expertise not in (None, "", '["string"]', '[]'):
+                            score += 5
+                score += int(cand.get('profilecompleteness') or 0)
+                return score
+                
+            best_candidate = max(matching_candidates, key=score_candidate)
+            
+            for json_field in ['taxexpertise', 'certifications', 'experience', 'education']:
+                if best_candidate.get(json_field):
+                    try:
+                        best_candidate[json_field] = json.loads(best_candidate[json_field])
+                    except Exception:
+                        pass
+            enrich_row_location(best_candidate, table="candidates")
+            if best_candidate.get('userid'):
+                best_candidate['user'] = self._get_user_for_candidate(cursor, best_candidate['userid'])
+            return CandidateResponse(**best_candidate)
+
+

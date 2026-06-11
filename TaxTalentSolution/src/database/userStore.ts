@@ -9,6 +9,7 @@ import { users, candidates, LocalDatabase } from './localDb';
 import { saveProfile } from './profileStore';
 import { localCredentials } from './localAuth';
 import { CandidatePlan, BillingCycle, UserSubscription } from './types';
+import { matchCandidateByLinkedInUrl } from '../api/candidateService';
 
 const STORE_KEY = 'tts_user_accounts';
 
@@ -119,17 +120,14 @@ export async function registerUser(params: {
   });
 
   // If candidate role → create a skeleton candidate profile
-  let linkedInMatch: ReturnType<typeof LocalDatabase.getLinkedInMappedProfile> | null = null;
+  let linkedInMatch: any = null;
 
   if (params.role === 'candidate') {
     const candidateId = `cnd-${id}`;
 
     // Try to find a matching LinkedIn profile to pre-populate
     if (params.linkedInUrl) {
-      const matchedCandidate = LocalDatabase.getCandidateByLinkedInUrl(params.linkedInUrl);
-      if (matchedCandidate) {
-        linkedInMatch = LocalDatabase.getLinkedInMappedProfile(matchedCandidate.id);
-      }
+      linkedInMatch = await matchCandidateByLinkedInUrl(params.linkedInUrl);
     }
 
     candidates.push({

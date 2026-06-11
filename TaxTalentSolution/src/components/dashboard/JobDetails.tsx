@@ -9,7 +9,6 @@ import {
   Clock,
   DollarSign,
   Building,
-  BookmarkPlus,
   Share2,
   CheckCircle,
   Loader2,
@@ -96,10 +95,6 @@ export function JobDetails({ jobId, onBack, onJobApplication }: JobDetailsProps)
           Back to Jobs
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <BookmarkPlus className="w-4 h-4 mr-2" />
-            Save Job
-          </Button>
           <Button variant="outline" size="sm">
             <Share2 className="w-4 h-4 mr-2" />
             Share

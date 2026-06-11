@@ -13,7 +13,6 @@ import {
   Building,
   Search,
   Filter,
-  BookmarkPlus,
   ExternalLink,
   Calendar,
   Loader2
@@ -143,10 +142,6 @@ export function Jobs({ onJobApplication, onViewDetails }: JobsProps) {
                     }
                   >
                     Apply Now
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <BookmarkPlus className="w-4 h-4 mr-1" />
-                    Save
                   </Button>
                 </div>
               </div>

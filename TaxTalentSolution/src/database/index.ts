@@ -61,6 +61,7 @@ export {
   useCertificates,
   useUserAssessmentActivity,
   useCandidateCertificates,
+  useCertificate,
   
   // Notification hooks
   useNotifications,

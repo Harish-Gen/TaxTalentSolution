@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginPage, type SignupRole } from "./components/LoginPage";
 import { Dashboard } from "./components/Dashboard";
+import { PublicCertificate } from "./components/dashboard/PublicCertificate";
 import { EmployerPortal } from "./components/EmployerPortal";
 import { AdminPortal } from "./components/AdminPortal";
 import { Header } from "./components/Header";
@@ -49,7 +50,8 @@ type View =
   | "employer-info"
   | "privacy-policy"
   | "terms-of-service"
-  | "about";
+  | "about"
+  | "public-certificate";
 
 type LoginPageConfig = {
   mode: "login" | "signup";
@@ -69,6 +71,7 @@ const VIEW_PARAM_MAP: Record<string, View> = {
   "admin-portal": "admin-portal",
   login: "login",
   landing: "landing",
+  "public-certificate": "public-certificate",
 };
 
 function viewFromEntraRole(role?: string): View {
@@ -85,6 +88,16 @@ function initialViewFromUrl(): View | null {
 function readInitialAuthState(): { user: any | null; view: View } {
   if (isAuthBridgeReturnUrl()) {
     return { user: null, view: "landing" };
+  }
+
+  const urlView = initialViewFromUrl();
+  if (urlView === "public-certificate") {
+    const entraToken = getAuthToken();
+    const entraUser = getStoredEntraUser();
+    if (entraToken && entraUser && !isTokenExpired(entraToken)) {
+      return { user: entraUser, view: "public-certificate" };
+    }
+    return { user: null, view: "public-certificate" };
   }
 
   const entraToken = getAuthToken();
@@ -131,6 +144,23 @@ export default function App() {
         return;
       }
 
+      const initialView = initialViewFromUrl();
+      if (initialView === "public-certificate") {
+        const entraToken = getAuthToken();
+        const entraUser = getStoredEntraUser();
+        if (entraToken && entraUser && !isTokenExpired(entraToken)) {
+          setUser(entraUser);
+        } else {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            setUser(session.user);
+          }
+        }
+        setCurrentView("public-certificate");
+        setLoading(false);
+        return;
+      }
+
       const entraToken = getAuthToken();
       const entraUser = getStoredEntraUser();
       if (entraToken && entraUser && !isTokenExpired(entraToken)) {
@@ -162,6 +192,18 @@ export default function App() {
           setLoading(false);
           return;
         }
+
+        const urlView = initialViewFromUrl();
+        if (urlView === "public-certificate") {
+          if (session?.user) {
+            setUser(session.user);
+          } else {
+            setUser(null);
+          }
+          setLoading(false);
+          return;
+        }
+
         if (session?.user) {
           setUser(session.user);
           setCurrentView(initialViewFromUrl() ?? "dashboard");
@@ -412,6 +454,16 @@ export default function App() {
     return (
       <>
         <About onBack={handleBackToLanding} />
+        <Toaster />
+      </>
+    );
+  }
+
+  if (currentView === "public-certificate") {
+    const certificateId = new URLSearchParams(window.location.search).get("id") || undefined;
+    return (
+      <>
+        <PublicCertificate id={certificateId} />
         <Toaster />
       </>
     );
