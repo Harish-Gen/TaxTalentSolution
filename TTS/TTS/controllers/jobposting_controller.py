@@ -39,7 +39,7 @@ def get_jobposting(jobposting_id: UUID, repo: IJobPostingRepository = Depends(ge
     Retrieve a specific active job posting by its ID.
     """
     try:
-        jobposting = repo.get_jobposting_by_id(jobposting_id)
+        jobposting = repo.get_jobposting_by_id(jobposting_id, include_inactive=True)
         if not jobposting:
             raise HTTPException(status_code=404, detail="Job posting not found")
         return jobposting

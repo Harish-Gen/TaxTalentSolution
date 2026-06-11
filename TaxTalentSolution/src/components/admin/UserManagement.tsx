@@ -150,13 +150,29 @@ export function UserManagement() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const s = (status || "").toLowerCase();
+    switch (s) {
       case "active":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>;
       case "inactive":
         return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100"><XCircle className="w-3 h-3 mr-1" />Inactive</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+      case "cpa_firm":
+      case "cpa firm":
+        return <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100"><Users className="w-3 h-3 mr-1" />CPA Firm</Badge>;
+      case "lead":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Lead</Badge>;
+      case "contacted":
+        return <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">Contacted</Badge>;
+      case "proposal":
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Proposal</Badge>;
+      case "negotiating":
+        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Negotiating</Badge>;
+      case "won":
+        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Won</Badge>;
+      case "declined":
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><XCircle className="w-3 h-3 mr-1" />Declined</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -391,6 +407,13 @@ export function UserManagement() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cpa_firm">CPA Firm</SelectItem>
+                <SelectItem value="lead">Lead</SelectItem>
+                <SelectItem value="contacted">Contacted</SelectItem>
+                <SelectItem value="proposal">Proposal</SelectItem>
+                <SelectItem value="negotiating">Negotiating</SelectItem>
+                <SelectItem value="won">Won</SelectItem>
+                <SelectItem value="declined">Declined</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -453,6 +476,13 @@ export function UserManagement() {
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="cpa_firm">CPA Firm</SelectItem>
+                          <SelectItem value="lead">Lead</SelectItem>
+                          <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="proposal">Proposal</SelectItem>
+                          <SelectItem value="negotiating">Negotiating</SelectItem>
+                          <SelectItem value="won">Won</SelectItem>
+                          <SelectItem value="declined">Declined</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

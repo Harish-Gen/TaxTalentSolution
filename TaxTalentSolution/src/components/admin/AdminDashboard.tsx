@@ -81,6 +81,20 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     [candidateList, employerList]
   );
 
+  const employerStats = useMemo(() => {
+    let active = 0;
+    let negotiating = 0;
+    let declined = 0;
+    for (const e of employerList) {
+      if ((e as any).isactive === false) continue;
+      const s = (e.status || "").toLowerCase();
+      if (s === "active") active++;
+      else if (s === "negotiating") negotiating++;
+      else if (s === "declined") declined++;
+    }
+    return { active, negotiating, declined };
+  }, [employerList]);
+
   const recentActions = useMemo(() => {
     type Item = { id: number; type: string; user: string; action: string; time: string; status: string; _date: Date };
     const items: Item[] = [
@@ -159,7 +173,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <p className="text-sm text-muted-foreground">Total Employers</p>
                 <p className="text-3xl mt-2">{platformStats.totalEmployers}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {platformStats.activeEmployers} active
+                  {employerStats.active} active • {employerStats.negotiating} negotiating • {employerStats.declined} declined
                 </p>
               </div>
               <Building2 className="w-10 h-10 text-blue-600 opacity-50" />

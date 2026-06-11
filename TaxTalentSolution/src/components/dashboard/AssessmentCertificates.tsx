@@ -60,7 +60,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     error: assessmentsError,
     refresh: refreshAssessments,
   } = useAssessments();
-  const { certificates: dbCertificates, loading: certificatesLoading } = useCertificates(userId);
+  const { certificates: dbCertificates, loading: certificatesLoading } = useCertificates(userId, activityRefresh);
   const { apiRecords, localRecords, loading: activityLoading } = useUserAssessmentActivity(
     userId,
     activityRefresh
@@ -285,13 +285,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
   }, [earnedCertificates, inProgressAssessments]);
 
   const is1040Assessment = (title: string) => /1040/i.test(title);
-  const is1040Certificate = (cert: { title: string; assessmentId?: string }) =>
-    is1040Assessment(cert.title) ||
-    (cert.assessmentId
-      ? is1040Assessment(
-          dbAssessments.find((a) => a.id === cert.assessmentId)?.title || ""
-        )
-      : false);
+  const is1040Certificate = (cert: { title: string; assessmentId?: string }) => true;
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -451,7 +445,7 @@ export function AssessmentCertificates({ user }: AssessmentCertificatesProps) {
     setSelectedCertificate(null);
   };
 
-  if (loading) {
+  if (loading && !currentAssessmentId && !showCertificate) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

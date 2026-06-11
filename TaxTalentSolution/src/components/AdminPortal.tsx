@@ -9,6 +9,8 @@ import { UserManagement } from "./admin/UserManagement";
 import { JobManagement } from "./admin/JobManagement";
 import { ResumeImport } from "./admin/ResumeImport";
 import { AdminSettings } from "./admin/AdminSettings";
+import { TalentSearch } from "./employer/TalentSearch";
+import { CandidateProfileView } from "./employer/CandidateProfileView";
 import { 
   LayoutDashboard,
   Users,
@@ -20,7 +22,8 @@ import {
   Shield,
   UserCog,
   Briefcase,
-  FileUp
+  FileUp,
+  Search
 } from "lucide-react";
 
 interface AdminPortalProps {
@@ -28,13 +31,25 @@ interface AdminPortalProps {
   onLogout: () => void;
 }
 
-type AdminSection = "dashboard" | "candidate-management" | "assessment-management" | "employer-management" | "user-management" | "job-management" | "resume-import" | "settings";
+type AdminSection = 
+  | "dashboard" 
+  | "talent-search"
+  | "candidate-profile"
+  | "candidate-management" 
+  | "assessment-management" 
+  | "employer-management" 
+  | "user-management" 
+  | "job-management" 
+  | "resume-import" 
+  | "settings";
 
 export function AdminPortal({ user, onLogout }: AdminPortalProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   const navigationItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "talent-search", label: "Search Talent", icon: Search },
     { id: "candidate-management", label: "Candidates", icon: Users },
     { id: "assessment-management", label: "Assessments", icon: Award },
     { id: "employer-management", label: "Employers", icon: Building2 },
@@ -44,14 +59,62 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
+  const handleViewProfile = (candidateId: string) => {
+    setSelectedCandidateId(candidateId);
+    setActiveSection("candidate-profile");
+  };
+
+  const handleBackFromProfile = () => {
+    setActiveSection("talent-search");
+    setSelectedCandidateId(null);
+  };
+
   const handleNavigate = (section: string) => {
     setActiveSection(section as AdminSection);
+  };
+
+  const sectionTitle =
+    activeSection === "candidate-profile"
+      ? "Candidate Profile"
+      : navigationItems.find((item) => item.id === activeSection)?.label || "Dashboard";
+
+  const sectionSubtitle: Record<AdminSection, string> = {
+    dashboard: "Platform overview and analytics",
+    "talent-search": "Search and filter tax professionals",
+    "candidate-profile": "Detailed candidate information",
+    "candidate-management": "Manage candidate profiles and approvals",
+    "assessment-management": "Create and manage skill assessments",
+    "employer-management": "Manage employer accounts and subscriptions",
+    "job-management": "Manage active and draft job listings",
+    "user-management": "Manage platform users and account associations",
+    "resume-import": "Bulk upload and parse candidate resumes",
+    settings: "Configure platform settings",
   };
 
   const renderContent = () => {
     switch (activeSection) {
       case "dashboard":
         return <AdminDashboard onNavigate={handleNavigate} />;
+      case "talent-search":
+        return (
+          <TalentSearch
+            onViewProfile={handleViewProfile}
+            userId={user?.id}
+          />
+        );
+      case "candidate-profile":
+        return selectedCandidateId ? (
+          <CandidateProfileView
+            candidateId={selectedCandidateId}
+            userId={user?.id}
+            onBack={handleBackFromProfile}
+          />
+        ) : (
+          <TalentSearch
+            onViewProfile={handleViewProfile}
+            userId={user?.id}
+          />
+        );
       case "candidate-management":
         return <CandidateManagement />;
       case "assessment-management":
@@ -95,7 +158,10 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id as AdminSection)}
+                onClick={() => {
+                  setActiveSection(item.id as AdminSection);
+                  setSelectedCandidateId(null);
+                }}
                 className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm ${
                   isActive
                     ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
@@ -129,7 +195,10 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
               variant="ghost"
               size="sm"
               className="flex-1 px-2"
-              onClick={() => setActiveSection("settings")}
+              onClick={() => {
+                setActiveSection("settings");
+                setSelectedCandidateId(null);
+              }}
               title="Settings"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -152,14 +221,10 @@ export function AdminPortal({ user, onLogout }: AdminPortalProps) {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  {navigationItems.find(item => item.id === activeSection)?.label || "Dashboard"}
+                  {sectionTitle}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {activeSection === "dashboard" && "Platform overview and analytics"}
-                  {activeSection === "candidate-management" && "Manage candidate profiles and approvals"}
-                  {activeSection === "assessment-management" && "Create and manage skill assessments"}
-                  {activeSection === "employer-management" && "Manage employer accounts and subscriptions"}
-                  {activeSection === "settings" && "Configure platform settings"}
+                  {sectionSubtitle[activeSection]}
                 </p>
               </div>
             </div>

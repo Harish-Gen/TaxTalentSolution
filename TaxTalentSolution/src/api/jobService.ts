@@ -19,6 +19,7 @@ export interface BackendJob {
   isactive?: boolean;
   createdon?: string;
   modifiedon?: string;
+  status?: string;
 }
 
 function mapToDBJob(backend: BackendJob): DBJob {
@@ -44,7 +45,7 @@ function mapToDBJob(backend: BackendJob): DBJob {
     requirements: backend.requirements || [],
     responsibilities: backend.responsibilities || [],
     benefits: backend.benefits || [],
-    status: (backend.isactive === false) ? 'closed' : 'active',
+    status: backend.status || ((backend.isactive === false) ? 'closed' : 'active'),
     is_urgent: false,
     is_featured: false,
     applicant_count: 0,
@@ -76,7 +77,8 @@ function mapToBackend(frontend: any): Partial<BackendJob> {
     requirements: frontend.requirements,
     responsibilities: frontend.responsibilities,
     benefits: frontend.benefits,
-    isactive: frontend.status !== 'closed' && frontend.status !== 'inactive'
+    isactive: frontend.status !== 'closed' && frontend.status !== 'inactive',
+    status: frontend.status
   };
 }
 

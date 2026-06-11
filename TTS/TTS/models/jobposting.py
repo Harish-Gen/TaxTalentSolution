@@ -19,6 +19,7 @@ class JobPostingCreateUpdate(BaseModel):
     responsibilities: Optional[Union[List[str], str]] = None
     benefits: Optional[Union[List[str], str]] = None
     isactive: Optional[bool] = None
+    status: Optional[str] = None
 
 class JobPostingResponse(JobPostingCreateUpdate):
     id: UUID

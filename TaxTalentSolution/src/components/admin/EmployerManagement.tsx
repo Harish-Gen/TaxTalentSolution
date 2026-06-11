@@ -25,7 +25,9 @@ import {
   Briefcase,
   Edit,
   Trash2,
-  Loader2
+  Loader2,
+  Handshake,
+  AlertCircle
 } from "lucide-react";
 import { useEmployers } from "../../database/hooks";
 import { employerService } from "../../api/employerService";
@@ -226,13 +228,29 @@ export function EmployerManagement() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const s = (status || "").toLowerCase();
+    switch (s) {
       case "active":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>;
       case "inactive":
         return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100"><XCircle className="w-3 h-3 mr-1" />Inactive</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+      case "cpa_firm":
+      case "cpa firm":
+        return <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100"><Building2 className="w-3 h-3 mr-1" />CPA Firm</Badge>;
+      case "lead":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Lead</Badge>;
+      case "contacted":
+        return <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">Contacted</Badge>;
+      case "proposal":
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Proposal</Badge>;
+      case "negotiating":
+        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Negotiating</Badge>;
+      case "won":
+        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Won</Badge>;
+      case "declined":
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><XCircle className="w-3 h-3 mr-1" />Declined</Badge>;
       default:
         return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{status}</Badge>;
     }
@@ -240,9 +258,11 @@ export function EmployerManagement() {
 
   const stats = {
     total: employers.length,
-    active: employers.filter(e => e.status === "active").length,
-    pending: employers.filter(e => e.status === "pending").length,
-    inactive: employers.filter(e => e.status === "inactive").length
+    active: employers.filter(e => (e.status || "").toLowerCase() === "active").length,
+    pending: employers.filter(e => (e.status || "").toLowerCase() === "pending").length,
+    inactive: employers.filter(e => (e.status || "").toLowerCase() === "inactive").length,
+    negotiating: employers.filter(e => (e.status || "").toLowerCase() === "negotiating").length,
+    declined: employers.filter(e => (e.status || "").toLowerCase() === "declined").length
   };
 
   if (loading && employers.length === 0) {
@@ -381,7 +401,7 @@ export function EmployerManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -429,6 +449,30 @@ export function EmployerManagement() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Negotiating</p>
+                <p className="text-3xl font-bold mt-1 text-amber-600">{stats.negotiating}</p>
+              </div>
+              <Handshake className="w-8 h-8 text-amber-600 opacity-50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Declined</p>
+                <p className="text-3xl font-bold mt-1 text-red-600">{stats.declined}</p>
+              </div>
+              <AlertCircle className="w-8 h-8 text-red-600 opacity-50" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}
@@ -457,6 +501,13 @@ export function EmployerManagement() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cpa_firm">CPA Firm</SelectItem>
+                <SelectItem value="lead">Lead</SelectItem>
+                <SelectItem value="contacted">Contacted</SelectItem>
+                <SelectItem value="proposal">Proposal</SelectItem>
+                <SelectItem value="negotiating">Negotiating</SelectItem>
+                <SelectItem value="won">Won</SelectItem>
+                <SelectItem value="declined">Declined</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -531,6 +582,13 @@ export function EmployerManagement() {
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="cpa_firm">CPA Firm</SelectItem>
+                          <SelectItem value="lead">Lead</SelectItem>
+                          <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="proposal">Proposal</SelectItem>
+                          <SelectItem value="negotiating">Negotiating</SelectItem>
+                          <SelectItem value="won">Won</SelectItem>
+                          <SelectItem value="declined">Declined</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

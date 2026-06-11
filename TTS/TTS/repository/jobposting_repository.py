@@ -39,7 +39,7 @@ class JobPostingRepository(IJobPostingRepository):
     def get_all_jobpostings(self) -> List[JobPostingResponse]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM jobpostings WHERE isactive = 1")
+            cursor.execute("SELECT * FROM jobpostings")
             rows = cursor.fetchall()
             return [JobPostingResponse(**self._row_to_dict(cursor, row)) for row in rows]
 

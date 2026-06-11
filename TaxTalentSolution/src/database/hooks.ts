@@ -709,7 +709,7 @@ export function useAssessment(id: string | undefined) {
   return { assessment, loading };
 }
 
-export function useCertificates(userId: string | undefined) {
+export function useCertificates(userId: string | undefined, refreshTrigger = 0) {
   const [data, setData] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -745,7 +745,7 @@ export function useCertificates(userId: string | undefined) {
       }
     };
     fetchData();
-  }, [userId]);
+  }, [userId, refreshTrigger]);
 
   return { certificates: data, loading };
 }

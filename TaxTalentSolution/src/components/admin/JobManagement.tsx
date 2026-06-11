@@ -120,7 +120,8 @@ export function JobManagement() {
     responsibilities: [""],
     benefits: [""],
     category: "",
-    closing_date: ""
+    closing_date: "",
+    status: "active" as any
   });
 
   const jobs = useMemo(() => {
@@ -153,8 +154,7 @@ export function JobManagement() {
         ...newJob,
         requirements,
         responsibilities,
-        benefits,
-        status: "active" as any
+        benefits
       });
 
       toast.success("Job posting created successfully");
@@ -215,7 +215,8 @@ export function JobManagement() {
       responsibilities: [""],
       benefits: [""],
       category: "",
-      closing_date: ""
+      closing_date: "",
+      status: "active"
     });
   };
 
@@ -288,13 +289,17 @@ export function JobManagement() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const s = status?.toLowerCase();
+    switch (s) {
       case "active":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="w-3 h-3 mr-1" />Active</Badge>;
       case "closed":
         return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100"><XCircle className="w-3 h-3 mr-1" />Closed</Badge>;
       case "draft":
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100"><FileText className="w-3 h-3 mr-1" />Draft</Badge>;
+      case "onhold":
+      case "on-hold":
+        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100"><Clock className="w-3 h-3 mr-1" />On Hold</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -480,7 +485,7 @@ export function JobManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="salaryMin">Min Salary (₹) *</Label>
                     <Input
@@ -507,6 +512,20 @@ export function JobManagement() {
                       value={newJob.closing_date}
                       onChange={(e) => setNewJob({ ...newJob, closing_date: e.target.value })}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status *</Label>
+                    <Select value={newJob.status} onValueChange={(value: any) => setNewJob({ ...newJob, status: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="on-hold">On Hold</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -605,6 +624,7 @@ export function JobManagement() {
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="closed">Closed</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="on-hold">On Hold</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterType} onValueChange={setFilterType}>
@@ -790,7 +810,7 @@ export function JobManagement() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editSalaryMin">Min Salary (₹) *</Label>
                 <Input
@@ -817,6 +837,20 @@ export function JobManagement() {
                   value={editJob.closing_date}
                   onChange={(e) => setEditJob({ ...editJob, closing_date: e.target.value })}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editStatus">Status *</Label>
+                <Select value={editJob.status} onValueChange={(value: any) => setEditJob({ ...editJob, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

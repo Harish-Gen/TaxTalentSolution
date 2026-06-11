@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { getProfileDisplayName } from "../../database/profileStore";
+import { Certificate1040 } from "./Certificate1040";
 
 interface Question {
   id: number;
@@ -618,85 +619,34 @@ export function Assessment1040({
     assessment.score >= 90 ? "Expert" : assessment.score >= 75 ? "Specialist" : "Professional";
 
   if (assessment.showCertificate) {
+    const issueDate = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const expiryDate = new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toLocaleDateString(
+      "en-US",
+      {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }
+    );
+    const credentialId = `TT-CERT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+
     return (
-      <div className="space-y-6">
-        {/* Certificate Display */}
-        <Card className="max-w-4xl mx-auto">
-          <CardContent className="p-0">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-12 text-center border-8 border-blue-200 rounded-lg">
-              <div className="mb-8">
-                <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">Certificate of Completion</h1>
-                <div className="w-24 h-1 bg-blue-500 mx-auto"></div>
-              </div>
-              
-              <div className="mb-8">
-                <p className="text-lg text-gray-600 mb-4">This is to certify that</p>
-                <p className="text-4xl font-bold text-blue-700 mb-4">{recipientName}</p>
-                <p className="text-lg text-gray-600 mb-2">has successfully completed the</p>
-                <p className="text-2xl font-semibold text-gray-800 mb-6">{displayTitle}</p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{assessment.score}%</div>
-                  <div className="text-sm text-gray-600">Score Achieved</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{questionBank.length}</div>
-                  <div className="text-sm text-gray-600">Questions Completed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{certificationLevel}</div>
-                  <div className="text-sm text-gray-600">Certification Level</div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Date of Completion:</p>
-                  <p className="font-semibold">{new Date().toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Certificate ID:</p>
-                  <p className="font-semibold">TT-1040-{new Date().getFullYear()}-{String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Valid Until:</p>
-                  <p className="font-semibold">{new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Issued by:</p>
-                  <p className="font-semibold">TaxTalent Assessment Center</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <Button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Certificate
-                </Button>
-                <Button variant="outline" onClick={() => {/* Share functionality */}}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share on LinkedIn
-                </Button>
-                <Button variant="outline" onClick={onBack}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Assessments
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Certificate1040
+        onBack={() => setAssessment(prev => ({ ...prev, showCertificate: false }))}
+        user={user}
+        certificate={{
+          title: displayTitle,
+          score: assessment.score,
+          issueDate,
+          validUntil: expiryDate,
+          credentialId,
+          level: certificationLevel,
+        }}
+      />
     );
   }
 
