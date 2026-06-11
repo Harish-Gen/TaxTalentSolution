@@ -149,6 +149,7 @@ function mapToDBCandidate(backend: BackendCandidate): DBCandidate & {
     experience: parseJsonArray(backend.experience),
     education: parseJsonArray(backend.education),
     linkedin_url: backendAny.linkedinurl || '',
+    resume_url: backend.resumeurl || '',
   };
 }
 
@@ -178,7 +179,7 @@ function mapToBackend(frontend: any): Partial<BackendCandidate> & { userid?: str
     currency: frontend.currency || "inr",
     availability: frontend.availability,
     workmode: frontend.work_mode,
-    resumeurl: frontend.resumeurl || "string",
+    resumeurl: frontend.resume_url || frontend.resumeurl || '',
     status: frontend.status || 'pending',
     stage: frontend.stage || "string",
     isactive: frontend.isactive ?? true,
@@ -252,6 +253,7 @@ export async function matchCandidateByLinkedInUrl(url: string, currentUserId?: s
   certifications: string[];
   experience: Array<{ id: number; company: string; position: string; duration: string; location: string; description: string }>;
   education: Array<{ id: number; institution: string; degree: string; field: string; duration: string; description: string }>;
+  resume_url?: string;
 } | null> {
   try {
     const dbCandidate = await candidateService.getCandidateByLinkedInUrl(url);
@@ -290,6 +292,7 @@ export async function matchCandidateByLinkedInUrl(url: string, currentUserId?: s
           certifications,
           experience,
           education,
+          resume_url: dbCandidate.resume_url || '',
         };
       }
     }

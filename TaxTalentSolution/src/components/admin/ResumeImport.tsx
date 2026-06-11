@@ -346,6 +346,10 @@ export function ResumeImport() {
         status: "pending",
         availability: "immediate",
         work_mode: "remote",
+        taxexpertise: f.form.skills,
+        certifications: f.form.certifications,
+        experience: f.form.experience,
+        education: f.form.education,
       });
       setFiles((prev) =>
         prev.map((fi) => (fi.id === fileId ? { ...fi, status: "saved" } : fi))

@@ -282,6 +282,11 @@ export function ParseToken() {
           location_country: country,
           linkedin_url: linkedIn,
           headline: linkedInMatch?.title || "",
+          taxexpertise: linkedInMatch?.skills || [],
+          certifications: linkedInMatch?.certifications || [],
+          experience: linkedInMatch?.experience || [],
+          education: linkedInMatch?.education || [],
+          resume_url: linkedInMatch?.resume_url || "",
         });
       } else if (role === "employer") {
         const employers = await employerService.getEmployers();
@@ -315,6 +320,14 @@ export function ParseToken() {
       }
 
       if (role === "candidate") {
+        if (linkedInMatch?.resume_url) {
+          const fileName = linkedInMatch.resume_url.split('/').pop() || 'resume.pdf';
+          saveResume(userId, {
+            blobName: linkedInMatch.resume_url,
+            displayName: fileName,
+            size: 0,
+          });
+        }
         saveProfile(userId, {
           name: linkedInMatch?.name || name,
           title: linkedInMatch?.title || "",

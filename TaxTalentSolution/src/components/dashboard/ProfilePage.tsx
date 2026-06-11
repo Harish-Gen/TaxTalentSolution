@@ -686,6 +686,9 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
             summary: profileToSave.summary,
             taxexpertise: profileToSave.skills,
             certifications: profileToSave.certifications,
+            experience: profileToSave.experience,
+            education: profileToSave.education,
+            resume_url: uploadedResume ? uploadedResume.blobName : "",
             profile_completeness: calculateProfileCompleteness(profileToSave),
           }).catch((err) => {
             console.error("Failed to save profile to database:", err);
@@ -698,7 +701,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
 
     window.setTimeout(() => setSaveStatus("saved"), 400);
     window.setTimeout(() => setSaveStatus("idle"), 2500);
-  }, [userId, profile, profileImage, accountEmail]);
+  }, [userId, profile, profileImage, accountEmail, uploadedResume]);
 
   const handleSaveProfile = useCallback(() => {
     persistProfile();
@@ -717,7 +720,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     }, 400);
 
     return () => window.clearTimeout(timer);
-  }, [profile, isEditing, userId, persistProfile]);
+  }, [profile, uploadedResume, isEditing, userId, persistProfile]);
 
   const reloadProfileFromStorage = useCallback(() => {
     const base = createEmptyProfileFromUser(user);
@@ -743,6 +746,16 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     matchCandidateByLinkedInUrl(url, userId)
       .then((linkedInMatch) => {
         if (linkedInMatch) {
+          if (linkedInMatch.resume_url) {
+            const fileName = linkedInMatch.resume_url.split('/').pop() || 'resume.pdf';
+            const resumeObj = {
+              blobName: linkedInMatch.resume_url,
+              displayName: fileName,
+              size: 0,
+            };
+            setUploadedResume(resumeObj);
+            saveResume(userId, resumeObj);
+          }
           setProfile((prev) => ({
             ...prev,
             name: linkedInMatch.name || prev.name,

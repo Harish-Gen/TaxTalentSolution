@@ -6,7 +6,7 @@
 // =====================================================
 
 import { users, candidates, LocalDatabase } from './localDb';
-import { saveProfile } from './profileStore';
+import { saveProfile, saveResume } from './profileStore';
 import { localCredentials } from './localAuth';
 import { CandidatePlan, BillingCycle, UserSubscription } from './types';
 import { matchCandidateByLinkedInUrl } from '../api/candidateService';
@@ -153,6 +153,14 @@ export async function registerUser(params: {
 
     // If LinkedIn matched, persist full profile so ProfilePage loads it immediately
     if (linkedInMatch) {
+      if (linkedInMatch.resume_url) {
+        const fileName = linkedInMatch.resume_url.split('/').pop() || 'resume.pdf';
+        saveResume(id, {
+          blobName: linkedInMatch.resume_url,
+          displayName: fileName,
+          size: 0,
+        });
+      }
       saveProfile(id, {
         name: linkedInMatch.name || params.name,
         title: linkedInMatch.title || '',
