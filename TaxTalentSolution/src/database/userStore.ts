@@ -127,7 +127,7 @@ export async function registerUser(params: {
 
     // Try to find a matching LinkedIn profile to pre-populate
     if (params.linkedInUrl) {
-      linkedInMatch = await matchCandidateByLinkedInUrl(params.linkedInUrl);
+      linkedInMatch = await matchCandidateByLinkedInUrl(params.linkedInUrl, id);
     }
 
     candidates.push({

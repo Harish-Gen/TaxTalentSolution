@@ -1,6 +1,5 @@
 import { apiRequest } from './apiService';
 import type { Candidate as DBCandidate, CandidateStatus } from '../database/types';
-import { LocalDatabase } from '../database/localDb';
 
 
 export interface BackendCandidateUser {
@@ -241,7 +240,7 @@ export const candidateService = {
   }
 };
 
-export async function matchCandidateByLinkedInUrl(url: string): Promise<{
+export async function matchCandidateByLinkedInUrl(url: string, currentUserId?: string): Promise<{
   name: string;
   title: string;
   location: string;
@@ -257,63 +256,45 @@ export async function matchCandidateByLinkedInUrl(url: string): Promise<{
   try {
     const dbCandidate = await candidateService.getCandidateByLinkedInUrl(url);
     if (dbCandidate) {
-      const name = dbCandidate.name || '';
-      const email = dbCandidate.email || '';
-      const phone = dbCandidate.phone || '';
-      const title = dbCandidate.headline || '';
-      const location = [dbCandidate.location_city, dbCandidate.location_state, dbCandidate.location_country].filter(Boolean).join(', ');
-      const summary = dbCandidate.summary || '';
-      const website = dbCandidate.linkedin_url || url;
-      const skills = dbCandidate.tax_expertise || [];
-      const certifications = dbCandidate.certifications || [];
-      
-      const localMatch = LocalDatabase.getLinkedInMappedProfile(dbCandidate.id);
-      const experience = dbCandidate.experience && dbCandidate.experience.length > 0
-        ? dbCandidate.experience
-        : (localMatch?.experience || [
-            {
-              id: 1,
-              company: 'Tax Consulting Firm',
-              position: title || 'Tax Professional',
-              duration: `Jan ${new Date().getFullYear() - (dbCandidate.experience_years || 3)} - Present`,
-              location: location,
-              description: summary,
-            }
-          ]);
-      const education = dbCandidate.education && dbCandidate.education.length > 0
-        ? dbCandidate.education
-        : (localMatch?.education || [
-            {
-              id: 1,
-              institution: 'University',
-              degree: 'Bachelor of Commerce (B.Com)',
-              field: 'Accounting & Finance',
-              duration: `${new Date().getFullYear() - (dbCandidate.experience_years || 3) - 4} - ${new Date().getFullYear() - (dbCandidate.experience_years || 3)}`,
-              description: '',
-            }
-          ]);
+      // Check if the matched profile is linked to ANOTHER user account.
+      // If it belongs to the current user (or matches currentUserId), do not import/overwrite.
+      const isAnotherAccount = currentUserId ? dbCandidate.user_id !== currentUserId : true;
+      if (isAnotherAccount) {
+        const name = dbCandidate.name || '';
+        const email = dbCandidate.email || '';
+        const phone = dbCandidate.phone || '';
+        const title = dbCandidate.headline || '';
+        const location = [dbCandidate.location_city, dbCandidate.location_state, dbCandidate.location_country].filter(Boolean).join(', ');
+        const summary = dbCandidate.summary || '';
+        const website = dbCandidate.linkedin_url || url;
+        const skills = dbCandidate.tax_expertise || [];
+        const certifications = dbCandidate.certifications || [];
+        
+        // Only import actual database-backed details; no fallback/hardcoded dummy details.
+        const experience = dbCandidate.experience && dbCandidate.experience.length > 0
+          ? dbCandidate.experience
+          : [];
+        const education = dbCandidate.education && dbCandidate.education.length > 0
+          ? dbCandidate.education
+          : [];
 
-      return {
-        name,
-        title,
-        location,
-        summary,
-        email,
-        phone,
-        website,
-        skills,
-        certifications,
-        experience,
-        education,
-      };
+        return {
+          name,
+          title,
+          location,
+          summary,
+          email,
+          phone,
+          website,
+          skills,
+          certifications,
+          experience,
+          education,
+        };
+      }
     }
   } catch (err) {
-    console.error("Backend candidate match failed, falling back to mock local db:", err);
-  }
-
-  const matchedCandidate = LocalDatabase.getCandidateByLinkedInUrl(url);
-  if (matchedCandidate) {
-    return LocalDatabase.getLinkedInMappedProfile(matchedCandidate.id);
+    console.error("Backend candidate match failed:", err);
   }
 
   return null;

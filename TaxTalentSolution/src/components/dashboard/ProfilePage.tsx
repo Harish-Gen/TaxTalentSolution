@@ -740,7 +740,7 @@ export function ProfilePage({ user, resumeUploadTrigger = 0 }: ProfilePageProps)
     setLinkedInStatus('loading');
     setLinkedInMessage('');
     
-    matchCandidateByLinkedInUrl(url)
+    matchCandidateByLinkedInUrl(url, userId)
       .then((linkedInMatch) => {
         if (linkedInMatch) {
           setProfile((prev) => ({
